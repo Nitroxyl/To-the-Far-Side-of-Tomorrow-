@@ -9,9 +9,9 @@ const artworkApi='https://pokeapi.co/api/v2/pokemon/';
 const knownSiteHints={
  'S-001':['LC-001'], 'S-002':['LC-002'], 'S-003':['LC-003'],
  'S-004':['LC-005'], 'S-005':['LC-004'],
- 'S-006':['KA-001'], 'S-007':['KA-002'], 'S-008':['CP-002'],
- 'S-009':['CI-001'], 'S-010':['RI-002'], 'S-012':['RI-004'],
- 'S-013':['CI-002']
+ 'S-006':['KA-001'], 'S-007':['KA-002'], 'S-008':['CI-002'],
+ 'S-009':['CO-001'], 'S-010':['RI-002'],
+ 'S-013':['CO-002']
 };
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const parseIds=v=>Array.isArray(v)?v.map(x=>String(x).trim()).filter(Boolean):String(v||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
@@ -67,8 +67,7 @@ function paintArtwork(root=document){
 }
 function qSites(q){return parseIds(q.relatedSites||q.linked)}
 function wSites(w){
- const explicit=parseIds(w.relatedSites||w.linkedSites);
- if(explicit.length)return explicit;
+ if(w.relatedSites!==undefined||w.linkedSites!==undefined)return parseIds(w.relatedSites!==undefined?w.relatedSites:w.linkedSites);
  const seeded=knownSiteHints[ref(w)];
  if(seeded)return seeded;
  const {sites}=arrays();
