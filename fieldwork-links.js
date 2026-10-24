@@ -6,13 +6,7 @@ if(!app)return;
 const gm=app.mode==='gm';
 const imageCache=new Map();
 const artworkApi='https://pokeapi.co/api/v2/pokemon/';
-const knownSiteHints={
- 'S-001':['LC-001'], 'S-002':['LC-002'], 'S-003':['LC-003'],
- 'S-004':['LC-005'], 'S-005':['LC-004'],
- 'S-006':['KA-001'], 'S-007':['KA-002'], 'S-008':['CI-002'],
- 'S-009':['CO-001'], 'S-010':['RI-002'],
- 'S-013':['CO-002']
-};
+const knownSiteHints={'S-001':['LC-001'],'S-002':['LC-002'],'S-003':['LC-003']};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const parseIds=v=>Array.isArray(v)?v.map(x=>String(x).trim()).filter(Boolean):String(v||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
 const ref=o=>String(o?.sourceId||o?.id||'');
@@ -185,7 +179,7 @@ function qSitesPlayerFallback(q){
 }
 function wSitesPlayerFallback(w){
  if(w.relatedSites!==undefined)return parseIds(w.relatedSites);
- return {'S-002':['LC-002'],'S-003':['LC-003'],'S-004':['LC-005'],'S-005':['LC-004']}[ref(w)]||[];
+ return {'S-002':['LC-002'],'S-003':['LC-003']}[ref(w)]||[];
 }
 function getLinksFor(type,record){
  if(gm)return connected(type,record);
