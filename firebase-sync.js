@@ -133,15 +133,22 @@ overlay.addEventListener('submit',e=>e.preventDefault());
 
 function palette(value){return THEMES[value]||THEMES.ocean}
 function formatCard(data,compact=false){
-  const p={...DEFAULT,...data},[primary,secondary]=palette(p.theme);
-  const themeName=Object.hasOwn(THEMES,p.theme)?p.theme:'ocean';
+  const p={...DEFAULT,...data};
+  const base=THEMES[p.theme]||THEMES.ocean;
+  const primary=/^#[0-9a-fA-F]{6}$/.test(p.customPrimary||'')?p.customPrimary:base[0];
+  const secondary=/^#[0-9a-fA-F]{6}$/.test(p.customSecondary||'')?p.customSecondary:base[1];
+  const portrait=typeof p.portraitData==='string'&&p.portraitData.length<=150000&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(p.portraitData)?p.portraitData:'';
+  const banner=typeof p.bannerData==='string'&&p.bannerData.length<=260000&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(p.bannerData)?p.bannerData:'';
+  const team=Array.isArray(p.team)?p.team.filter(Boolean).slice(0,6):[];
   return '<article class="trainer-preview" style="--card-primary:'+primary+';--card-secondary:'+secondary+'">'+
-   '<div class="trainer-eyebrow">SANTARA · OFFICIAL TRAINER CARD</div>'+
-   '<div class="trainer-row"><div class="trainer-avatar">'+(ICONS.includes(p.avatar)?p.avatar:'🎒')+'</div>'+
+   (banner?'<img src="'+banner+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.27;pointer-events:none">':'')+
+   '<div style="position:relative;z-index:2"><div class="trainer-eyebrow">SANTARA · OFFICIAL TRAINER CARD</div>'+
+   '<div class="trainer-row"><div class="trainer-avatar">'+(portrait?'<img src="'+portrait+'" alt="Trainer portrait" style="width:100%;height:100%;object-fit:cover;border-radius:16px">':ICONS.includes(p.avatar)?p.avatar:'🎒')+'</div>'+
    '<div><div class="trainer-name">'+esc(p.trainerName)+'</div><div>'+esc(p.trainerClass)+'</div><div class="trainer-helper" style="color:#fff">From '+esc(p.hometown)+'</div></div></div>'+
-   '<div style="margin-top:19px"><span class="trainer-chip">Partner: '+esc(p.partnerPokemon)+'</span><span class="trainer-chip">'+esc(p.favoriteType)+' specialist</span><span class="trainer-chip">'+Number(p.badgeCount||0)+' badges</span></div>'+
+   '<div style="margin-top:19px"><span class="trainer-chip">Partner: '+esc(p.partnerPokemon)+'</span><span class="trainer-chip">'+esc(p.favoriteType)+' specialist</span><span class="trainer-chip">'+Math.max(0,Math.min(8,Number(p.badgeCount)||0))+' badges</span></div>'+
+   (team.length?'<div class="trainer-chip">Team: '+esc(team.join(' · '))+'</div>':'')+
    (compact?'':'<p class="trainer-quote">“'+esc(p.quote)+'”</p>')+
-   '<div class="trainer-eyebrow" style="margin-top:17px">THE '+esc(themeName.toUpperCase())+' EDITION</div></article>';
+   '<div class="trainer-eyebrow" style="margin-top:17px">'+esc(p.trainerTitle||'REGIONAL TRAINER')+'</div></div></article>';
 }
 function choices(items,value){
  return items.map(item=>'<option value="'+esc(item)+'" '+(item===value?'selected':'')+'>'+esc(item)+'</option>').join('')
@@ -172,35 +179,18 @@ window.SantaraTrainer={
   const root=document.getElementById('trainer-card-root');
   if(!root)return;
   if(!approved||!currentUser){
-    root.innerHTML='<div class="trainer-alert">Sign in, verify your email and receive GM approval to create a Trainer Card.</div>';
+    root.innerHTML='<div class="trainer-alert">Sign in, verify your email and receive GM approval to open Trainer Cards.</div>';
     return;
   }
   const p={...DEFAULT,...ownCard};
-  const editor='<section class="trainer-form"><h2 class="trainer-title">Customize your Trainer Card</h2><p class="trainer-helper">Your own card is editable; other Trainers can view it after you save.</p>'+
-  '<form id="trainer-profile-form"><div class="trainer-formgrid">'+
-  '<label>Trainer name<input required maxlength="32" name="trainerName" value="'+esc(p.trainerName)+'"></label>'+
-  '<label>Trainer class<input required maxlength="32" name="trainerClass" value="'+esc(p.trainerClass)+'"></label>'+
-  '<label>Hometown<input maxlength="48" name="hometown" value="'+esc(p.hometown)+'"></label>'+
-  '<label>Partner Pokémon<input maxlength="48" name="partnerPokemon" value="'+esc(p.partnerPokemon)+'"></label>'+
-  '<label>Favourite type<select name="favoriteType">'+choices(TYPES,p.favoriteType)+'</select></label>'+
-  '<label>Card colour<select name="theme">'+choices(Object.keys(THEMES),p.theme)+'</select></label>'+
-  '<label>Trainer emblem<select name="avatar">'+choices(ICONS,p.avatar)+'</select></label>'+
-  '<label>Gym badges<select name="badgeCount">'+choices(['0','1','2','3','4','5','6','7','8'],String(p.badgeCount))+'</select></label>'+
-  '<label class="wide">Trainer motto<textarea maxlength="180" rows="3" name="quote">'+esc(p.quote)+'</textarea></label>'+
-  '</div><button class="btn primary" type="submit" style="margin-top:16px">Save Trainer Card</button> <span id="trainer-feedback" class="trainer-helper" role="status"></span></form></section>';
-  root.innerHTML='<section class="hero"><div class="eyebrow">TRAINER IDENTITY</div><h2>Your Trainer Card</h2><p>Choose your colours, show off your partner, and build your identity in the Santara League.</p></section>'+
-  '<div class="trainer-shell"><div id="trainer-live-preview">'+formatCard(p)+'</div>'+editor+'</div>'+
-  '<section style="margin-top:30px"><h2 class="trainer-title">Trainer Roster</h2><p class="trainer-helper">Cards shared by other approved Trainers.</p><div class="trainer-roster">'+(roster.length?roster.map(card=>formatCard(card,true)).join(''):'<p class="trainer-helper">Nobody has published a Trainer Card yet.</p>')+'</div></section>';
-  const form=root.querySelector('#trainer-profile-form');
-  const redraw=()=>{
-    const fd=new FormData(form);
-    const preview={...p};
-    for(const k of ['trainerName','trainerClass','hometown','partnerPokemon','favoriteType','theme','avatar','quote','badgeCount'])preview[k]=fd.get(k)||'';
-    root.querySelector('#trainer-live-preview').innerHTML=formatCard(preview);
-  };
-  form.addEventListener('input',redraw);
-  form.addEventListener('change',redraw);
-  form.addEventListener('submit',e=>{e.preventDefault();saveTrainer(form)});
+  const ownURL='./trainer.html';
+  root.innerHTML='<section class="hero"><div class="eyebrow">TRAINER IDENTITY</div><h2>Trainer Passports</h2><p>Your official Santara Trainer Card now has its own customisation studio. Open your personal profile to edit your colours, portrait, banner and team.</p></section>'+
+  '<div class="trainer-shell"><div><a class="trainer-profile-link" href="'+ownURL+'">'+formatCard(p)+'</a><a class="btn primary" style="display:inline-block;margin-top:15px;text-decoration:none" href="'+ownURL+'">★ Customize my Trainer Card</a></div>'+
+  '<section class="trainer-form"><h2 class="trainer-title">Your Trainer Passport</h2><p class="trainer-helper">Every Trainer has a personal page. Your name and favourite Pokémon appear on the roster, while your profile photo, colours, banner, motto and team can all be customized in the full editor.</p>'+
+  '<p class="trainer-helper">Images are automatically resized and saved to Firestore without requiring Firebase Storage.</p><a class="btn primary" style="display:inline-block;margin-top:10px;text-decoration:none" href="'+ownURL+'">Open my profile →</a></section></div>'+
+  '<section style="margin-top:30px"><h2 class="trainer-title">Registered Trainers</h2><p class="trainer-helper">Select any card to view its owner’s Trainer Passport. Only the owner can edit it.</p><div class="trainer-roster">'+
+  (roster.length?roster.map(card=>'<a class="trainer-profile-link" href="./trainer.html?uid='+encodeURIComponent(card.uid)+'">'+formatCard(card,true)+'</a>').join(''):'<p class="trainer-helper">Nobody has published a Trainer Card yet.</p>')+
+  '</div></section>';
  }
 };
 if(!bridge||bridge.mode!=='player'){gate('Configuration error','<p>Player journal bridge is missing.</p>')}
