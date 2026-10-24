@@ -13,7 +13,7 @@ const configured = config && ['apiKey', 'authDomain', 'projectId', 'appId'].ever
 // This stays outside the dashboard's #app, which is re-rendered after edits.
 const panel = document.createElement('aside');
 panel.id = 'santara-cloud-panel';
-panel.style.cssText = 'position:fixed;z-index:9998;bottom:14px;right:14px;width:min(320px,calc(100vw - 28px));padding:12px 14px;background:#142735;color:#e5f4f4;border:1px solid #518b85;border-radius:13px;box-shadow:0 8px 30px #0008;font:13px/1.45 system-ui,sans-serif';
+panel.style.cssText = 'position:fixed;z-index:5;bottom:14px;right:14px;width:min(320px,calc(100vw - 28px));padding:12px 14px;background:#142735;color:#e5f4f4;border:1px solid #518b85;border-radius:13px;box-shadow:0 8px 30px #0008;font:13px/1.45 system-ui,sans-serif';
 panel.innerHTML = `<div style="font-weight:750;margin-bottom:4px">☁ ${isGM ? 'GM publishing' : 'Live Pokédex'} · Firestore</div><div id="cloud-status" role="status" aria-live="polite" style="color:#b4c9c9">Connecting…</div>${isGM ? '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px"><button id="cloud-signin" type="button">Sign in with Google</button><button id="cloud-publish" type="button" disabled>Publish visible records</button><button id="cloud-signout" type="button" hidden>Sign out</button></div>' : ''}`;
 document.body.append(panel);
 for (const button of panel.querySelectorAll('button')) {
