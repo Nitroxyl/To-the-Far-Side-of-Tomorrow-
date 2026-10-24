@@ -10,6 +10,7 @@
 
 /* Trainer Card designer and gallery */
 .trainer-shell{display:grid;grid-template-columns:minmax(270px,.95fr) minmax(310px,1.05fr);gap:20px;align-items:start}.trainer-preview{border-radius:23px;min-height:310px;padding:26px;color:white;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--card-primary,#7b48d9),var(--card-secondary,#24104c));border:1px solid #ffffff55;box-shadow:0 22px 55px #0008}.trainer-preview:after{content:'◈';position:absolute;right:-8px;top:-46px;font-size:200px;opacity:.10;pointer-events:none}.trainer-preview>*,.trainer-preview .trainer-row{position:relative;z-index:1}.trainer-eyebrow{text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:800;opacity:.8}.trainer-avatar{display:grid;place-items:center;border-radius:18px;background:#ffffff24;border:1px solid #ffffff50;width:94px;height:94px;font-size:49px;backdrop-filter:blur(8px)}.trainer-name{font-size:clamp(25px,3vw,34px);font-weight:850;letter-spacing:-.7px;line-height:1.1;margin:9px 0 3px}.trainer-row{display:flex;align-items:center;gap:16px;margin-top:25px}.trainer-chip{border:1px solid #ffffff66;background:#ffffff25;padding:5px 9px;border-radius:99px;font-size:12px;display:inline-block;margin:7px 5px 0 0}.trainer-quote{font-style:italic;opacity:.95;overflow-wrap:anywhere;margin-top:17px}.trainer-form{padding:20px;background:var(--panel);border:1px solid var(--edge);border-radius:17px}.trainer-formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.trainer-formgrid label{font-size:12px;font-weight:700;color:var(--muted);display:grid;gap:5px}.trainer-formgrid input,.trainer-formgrid select,.trainer-formgrid textarea{background:var(--panel2);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:10px;width:100%;min-width:0}.trainer-formgrid .wide{grid-column:1/-1}.trainer-roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:18px}.trainer-roster .trainer-preview{min-height:255px;padding:19px}.trainer-roster .trainer-row{margin-top:14px}.trainer-roster .trainer-avatar{width:67px;height:67px;font-size:36px}.trainer-roster .trainer-name{font-size:24px}.trainer-title{font-size:21px;margin:0 0 12px}.trainer-helper{color:var(--muted);font-size:13px;line-height:1.6}.trainer-alert{border:1px solid var(--edge);padding:18px;border-radius:12px;background:var(--panel)}@media(max-width:870px){.trainer-shell{grid-template-columns:1fr}}
+.trainer-profile-link{display:block;color:inherit;text-decoration:none;min-width:0}.trainer-profile-link:hover .trainer-preview{outline:2px solid var(--teal);outline-offset:2px;transform:translateY(-2px)}.trainer-preview{transition:transform .18s ease;isolation:isolate}
 </style>
 <script src="./firebase-config.js"></script>
 </head>
@@ -22,7 +23,7 @@ const KEY='santara-fieldwork-v1-'+MODE;
 const config= MODE==='gm' ? [ ['overview','◈','Mission control'],['sites','⌖','Atlas & discoveries'],['quests','▤','Requests & arcs'],['wildlife','♧','Wildlife records'],['sessions','◷','Session log'],['publish','⇧','Publish to players'],['settings','⚙','Backup & help'] ] : [ ['overview','◈','Pokédex home'],['requests','▤','Fieldwork board'],['sites','⌖','Discovery journal'],['sightings','♧','Sightings'],['sessions','◷','Party notebook'],['trainer','★','Trainer Cards'],['settings','⚙','Sync & backup'] ];
 function copy(x){return JSON.parse(JSON.stringify(x))}
 function load(){try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);if(o&&o.sites&&Array.isArray(o.sites))return o}}catch(e){}return copy(SEED)}
-let db=load(),tab='overview',search='',filter='all',toastMsg='',edit=null;
+let db=load(),tab=new URLSearchParams(window.location.search).get('tab')==='trainer'?'trainer':'overview',search='',filter='all',toastMsg='',edit=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){toastMsg='Browser storage was unavailable. Export a JSON backup to keep your changes.';return false}}
 function H(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function short(v,max=170){v=String(v??'');return v.length>max?v.slice(0,max).trim()+'…':v}
@@ -89,5 +90,5 @@ window.SantaraBridge = {
 };
 render();
 </script>
-<script type="module" src="./firebase-sync.js?v=trainer-auth-20261025-2"></script>
+<script type="module" src="./firebase-sync.js?v=trainer-studio-20261025-1"></script>
 </body></html>
