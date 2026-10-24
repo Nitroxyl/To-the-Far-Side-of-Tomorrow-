@@ -1,12 +1,10 @@
-// Copy the Firebase web app configuration from Firebase Console > Project settings.
-// Use the SAME Firebase project for the GM and Player sites.
-// This browser configuration is public. Never paste service-account private keys here.
+
 window.SANTARA_FIREBASE_CONFIG = {
-  apiKey: 'PASTE_API_KEY',
-  authDomain: 'PASTE_PROJECT_ID.firebaseapp.com',
-  projectId: 'PASTE_PROJECT_ID',
-  appId: 'PASTE_APP_ID',
-  // Uncomment if Firebase provides them:
-  // messagingSenderId: 'PASTE_SENDER_ID',
-  // storageBucket: 'PASTE_PROJECT_ID.firebasestorage.app',
+  apiKey: "AIzaSyDJUJ1e3OTNguwyZ3spujPsQ3CJeTAAjlg",
+  authDomain: "to-the-far-side-of.firebaseapp.com",
+  projectId: "to-the-far-side-of",
+  storageBucket: "to-the-far-side-of.firebasestorage.app",
+  messagingSenderId: "574028145671",
+  appId: "1:574028145671:web:bb32fae50c65ee33fc76a2",
+  measurementId: "G-F4YE76V5JP"
 };
