@@ -239,8 +239,8 @@ function subscribe(){
 }
 function enter(){
  canEnter=true;profileUid=requestedUid||user.uid;
- if(stopAccess){stopAccess();stopAccess=null}
- subscribe();
+ // Keep the access listener active so revocation closes this profile immediately.
+ if(!stopCard)subscribe();
 }
 function authHandler(u){
  if(stopCard){stopCard();stopCard=null}
