@@ -108,6 +108,9 @@ async function saveCatalog(form,isMove){
   record={...record,type,category,power,accuracy,dice:cap(fd.get('dice'),120)};
  }
  await setDoc(doc(store,coll,slug),record);
+ const list=isMove?customMoves:customAbilities;
+ const i=list.findIndex(x=>x.slug===slug);
+ if(i<0)list.push(record);else list[i]=record;
  say(name+' saved to your custom '+(isMove?'moves':'abilities')+' catalogue.');
  catalogReturn();
 }
@@ -380,7 +383,8 @@ function customForm(){
  <form id="custom-form" class="form-grid">
  <label class="field">Species/form name<input required name="name" maxlength="65" placeholder="Mega Charizard Z"></label>
  <label class="field">Types (comma-separated)<input required name="types" maxlength="70" placeholder="Fire, Dragon"></label>
- <label class="field full">Abilities (comma-separated)<input name="abilities" list="custom-species-abilities" maxlength="140" placeholder="Kingdom's End"><datalist id="custom-species-abilities">${customAbilities.map(a=>`<option value="${esc(a.name)}"></option>`).join('')}</datalist><span class="hint">You can register an ability's complete effects separately in Custom Abilities.</span></label>
+ <div class="field full"><span class="eyebrow">Available abilities</span><div class="move-fields">${Array.from({length:3},(_,i)=>`<label class="field">Ability ${i+1}<input name="speciesAbility${i+1}" list="custom-species-abilities" maxlength="48" placeholder="Official or custom ability"></label>`).join('')}</div>
+ <datalist id="custom-species-abilities">${customAbilities.map(a=>`<option value="${esc(a.name)}"></option>`).join('')}</datalist><span class="hint">Define ability effects using the Custom Ability editor on the GM Pokémon home screen.</span></div>
  ${statInputs(null)}
  <label class="field full">Artwork URL (HTTPS, optional)<input name="spriteUrl" type="url" placeholder="https://…"></label>
  <label class="field full">Or upload artwork (PNG/JPG/WebP, compressed to small WebP)<input name="upload" type="file" accept="image/png,image/jpeg,image/webp"></label>
@@ -426,7 +430,8 @@ async function saveCustom(form){
  const baseStats=Object.fromEntries(statKeys.map(k=>[k,Number(f.get(k))]));
  if(!validStats(baseStats))throw Error('Every base stat must be a whole number between 1 and 255.');
  const types=cap(f.get('types'),70).split(',').map(x=>x.trim().toLowerCase()).filter(Boolean).slice(0,2);
- const abilities=cap(f.get('abilities'),140).split(',').map(x=>x.trim()).filter(Boolean).slice(0,3);
+ const abilities=Array.from({length:3},(_,i)=>cap(f.get('speciesAbility'+(i+1)),48)).filter(Boolean);
+ if(new Set(abilities.map(a=>a.toLowerCase())).size!==abilities.length)throw Error('A species cannot list the same ability twice.');
  if(!types.length)throw Error('At least one type is required.');
  const url=cap(f.get('spriteUrl'),400);
  if(url&&!safeUrl(url))throw Error('Artwork links must use HTTPS.');
