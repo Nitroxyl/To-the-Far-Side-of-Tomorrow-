@@ -2,6 +2,8 @@ import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/1
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,collection,doc,query,where,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=v52-requests-20261025-2';
+import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
+import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -16,8 +18,8 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null;
-let pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null;
+let pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -115,13 +117,109 @@ async function saveCatalog(form,isMove){
  catalogReturn();
 }
 
+function formSlug(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70);}
+function currentMega(mon){return megaForms.find(f=>f.slug===mon?.megaForm?.slug)||mon?.megaForm||null;}
+function gmMechanicsUI(){
+ if(!GM_SITE)return '';
+ const g=unlocks(ownerFilter);
+ return unlockUI(g,trainerLabel(ownerFilter),esc)+libraryUI(megaForms,esc);
+}
+function megaChoiceFor(mon){
+ return megaForms.filter(f=>String(f.baseSpeciesKey).toLowerCase()===String(mon?.speciesKey||'').toLowerCase());
+}
+async function saveUnlocks(form){
+ if(!GM_SITE||!ownerFilter||!trainers.some(t=>t.uid===ownerFilter))throw Error('Select an approved Trainer.');
+ const f=new FormData(form);
+ const values={tera:f.has('tera'),mega:f.has('mega'),zMove:f.has('zMove'),dynamax:f.has('dynamax'),updatedAt:serverTimestamp()};
+ await setDoc(doc(store,'santara_trainer_gimmicks',ownerFilter),values);
+ say('Updated unlocks for '+trainerLabel(ownerFilter)+'.');
+}
+async function saveMegaForm(form){
+ if(!GM_SITE)throw Error('Only the GM can register Mega forms.');
+ const f=new FormData(form),name=cap(f.get('name'),85);
+ const key=cap(f.get('baseSpeciesKey'),110).toLowerCase().replace(/\s+/g,'-');
+ const slug=formSlug(name);
+ if(slug.length<2||!/^(custom:[a-z0-9-]+|[a-z0-9-]+)$/.test(key))throw Error('Check the base species key and Mega form name.');
+ if(editingMega?.slug&&editingMega.slug!==slug)throw Error('To rename this form, register a new entry rather than overwriting its ID.');
+ const baseStats=Object.fromEntries(statKeys.map(k=>[k,Number(f.get('stat_'+k))]));
+ if(!validStats(baseStats))throw Error('Each Mega base stat must be between 1 and 255.');
+ const types=[String(f.get('type1')),String(f.get('type2'))].filter(Boolean);
+ if(types.some(t=>!TYPES.includes(t))||new Set(types).size!==types.length)throw Error('Invalid Mega typing.');
+ const ability=cap(f.get('ability'),48);if(!ability)throw Error('Provide a Mega ability.');
+ const spriteUrl=cap(f.get('spriteUrl'),600);
+ if(spriteUrl&&!safeUrl(spriteUrl))throw Error('Use an HTTPS artwork URL.');
+ const upload=f.get('upload');
+ const spriteData=upload?.size?await imgToWebp(upload):(editingMega?.spriteData||'');
+ await setDoc(doc(store,'santara_mega_forms',slug),{slug,name,baseSpeciesKey:key,baseStats,types,ability,spriteUrl,spriteData,
+  source:megaImported?'official':'custom',updatedAt:serverTimestamp()});
+ say(name+' saved. Assign this form to a compatible regular Pokémon from the GM editor.');
+ editingMega=null;megaImported=false;clearSelection();
+}
+async function importMega(form){
+ const f=new FormData(form),name=cap(f.get('officialKey'),70);
+ if(!name)throw Error('Enter an official Mega identifier, e.g. charizard-mega-x.');
+ const p=await fetchOfficial(name);
+ if(!name.includes('-mega'))throw Error('That does not look like an official Mega Evolution.');
+ const baseKey=cap(f.get('baseSpeciesKey'),110).trim().toLowerCase()||name.split('-mega')[0];
+ form.elements.baseSpeciesKey.value=baseKey;
+ form.elements.name.value=p.speciesName;
+ form.elements.type1.value=p.types[0]||'normal';
+ form.elements.type2.value=p.types[1]||'';
+ for(const k of statKeys)form.elements['stat_'+k].value=p.baseStats[k];
+ form.elements.ability.value=p.abilities?.[0]||'';
+ form.elements.spriteUrl.value=p.spriteUrl||'';
+ megaImported=true;
+ say('Official Mega imported. Review its stats and ability, then save.');
+}
+function displayPokemon(m){
+ return effectivePokemon(m,unlocks(m.ownerUid));
+}
+async function setTeraType(mon,type){
+ if(!unlocks(mon.ownerUid).tera)throw Error('Your GM has not unlocked Terastallization.');
+ if(!TYPES.includes(type))throw Error('Invalid Tera type.');
+ await updateDoc(doc(store,'santara_pokemon',mon.id),{teraType:type,updatedAt:serverTimestamp()});
+ say('Tera type set to '+type+'.');
+}
+async function gimmickAction(code,m){
+ const enabled=unlocks(m.ownerUid),patch={updatedAt:serverTimestamp()};
+ if(code==='tera'){
+  if(!enabled.tera)throw Error('Terastallization is locked.');
+  patch.teraType=TYPES.includes(m.teraType)?m.teraType:(m.types?.[0]||'normal');
+  patch.teraActive=!m.teraActive;
+  if(patch.teraActive){patch.megaActive=false;patch.dynamaxTurns=0;}
+ }else if(code==='mega'){
+  if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
+  if(!m.megaActive&&pokemon.some(p=>p.ownerUid===m.ownerUid&&p.id!==m.id&&p.megaActive===true))throw Error('Another Pokémon is already Mega Evolved. Revert it first.');
+  patch.megaActive=!m.megaActive;
+  if(patch.megaActive){patch.teraActive=false;patch.dynamaxTurns=0;}
+ }else if(code==='z'){
+  if(!enabled.zMove)throw Error('Z-Moves are locked.');
+  patch.zUsed=!m.zUsed;
+ }else if(code==='dmax'){
+  if(!enabled.dynamax)throw Error('Dynamax is locked.');
+  if(Number(m.dynamaxTurns)>0)patch.dynamaxTurns=0;
+  else {
+   if(m.dynamaxUsed)throw Error('Dynamax already used. Reset between battles.');
+   patch.dynamaxTurns=3;patch.dynamaxUsed=true;
+   patch.megaActive=false;patch.teraActive=false;
+  }
+ }else if(code==='next'){
+  if(!enabled.dynamax||!m.dynamaxTurns)throw Error('Not currently Dynamaxed.');
+  patch.dynamaxTurns=Math.max(0,Number(m.dynamaxTurns)-1);
+ }else if(code==='reset'){
+  if(!enabled.dynamax)throw Error('Dynamax is locked.');
+  patch.dynamaxTurns=0;patch.dynamaxUsed=false;
+ }else throw Error('Unknown mechanic.');
+ await updateDoc(doc(store,'santara_pokemon',m.id),patch);
+}
+
 function gate(message){
  root.innerHTML=`<section class="panel"><h2>${esc(message)}</h2><p>Use the same Firebase account as the Santara Fieldwork website. New players must verify their email and be approved by the GM.</p>
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -130,7 +228,18 @@ function guard(){
  if(!allowed){root.innerHTML='<section class="panel"><h2>Waiting for Trainer approval</h2><p>Your account is not approved yet. Open the Fieldwork site to request access.</p><a href="./index.html">Trainer registration</a></section>';return}
  render();
 }
+function unlocks(uid){return GM_SITE?trainerUnlocks[uid]||initialUnlocks():playerUnlocks;}
 function connect(){
+ stopGimmicks=onSnapshot(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
+   if(GM_SITE)trainerUnlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
+   else playerUnlocks=snap.exists()?snap.data():initialUnlocks();
+   if(view==='party'||view==='storage'||chosen)render();
+ },e=>console.warn('Unlock listener:',e.message));
+ if(GM_SITE)stopMegaForms=onSnapshot(collection(store,'santara_mega_forms'),snap=>{
+  megaForms=snap.docs.map(d=>({...d.data(),slug:d.id})).sort((a,b)=>a.name.localeCompare(b.name));
+  if(view==='party'||view==='storage')render();
+ },e=>console.warn('Mega library listener:',e.message));
+
  stopRules=onSnapshot(doc(store,'santara_battle_rules','v5_2'),snapshot=>{battleRules=snapshot.exists()?snapshot.data():null;render()},e=>{battleRules=null;console.warn('Optional GM overrides unavailable:',e.message);});
  if(stopPokemon)stopPokemon();
  const col=collection(store,'santara_pokemon');
@@ -200,11 +309,12 @@ function artwork(m){
  return src?`<img class="poke-art" src="${esc(src)}" loading="lazy" alt="${esc(m.speciesName)}" onerror="this.style.visibility='hidden'">`:'<span class="poke-art" style="display:grid;place-items:center;font-size:48px">◈</span>';
 }
 function card(m){
- const max=Math.max(1,m.maxHp||1),pct=Math.max(0,Math.min(100,Math.round((m.currentHp||0)/max*100)));
+ const shown=displayPokemon(m);
+ const max=Math.max(1,shown.maxHp||1),pct=Math.max(0,Math.min(100,Math.round((shown.currentHp||0)/max*100)));
  const cls=pct<=20?'critical':pct<=50?'low':'';
- return `<button class="poke-card" type="button" data-act="show" data-id="${esc(m.id)}">${artwork(m)}<span class="poke-info">
- <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((m.types||[]).join(' / '))}</span>
- <span class="hpbar ${cls}"><i style="width:${pct}%"></i></span><span class="sub">${m.currentHp}/${m.maxHp} HP · ${esc(m.status||'None')}</span></span></button>`;
+ return `<button class="poke-card" type="button" data-act="show" data-id="${esc(m.id)}">${artwork(shown)}<span class="poke-info">
+ <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((shown.types||[]).join(' / '))}</span>
+ <span class="hpbar ${cls}"><i style="width:${pct}%"></i></span><span class="sub">${shown.currentHp}/${shown.maxHp} HP · ${esc(m.status||'None')}</span></span></button>`;
 }
 
 function requestForm(){
@@ -295,21 +405,21 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>`:''}${requestsSection()}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
 }
 function detail(m){
- const s=m.baseStats||{},d=combatSummary(m,battleRules);
+ const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
- <div class="detail-head">${artwork(m)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span></h2><p>${esc(m.speciesName)} · ${esc((m.types||[]).join(' / '))} · ${esc(m.ability||'No ability')}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(m.ability)?`<p class="hint"><b>${esc(m.ability)}:</b> ${esc(customAbilityByName(m.ability).description)}</p>`:''}</div></div></section>
- <div class="columns"><section class="panel"><h3>Battle Sheet</h3><div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
+ <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
+ <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
  <div class="stats-grid"><div class="stat"><b>${d.universalAC??'11 + PB'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
  <p class="flag">V5.2: damage dice × offense × STAB × type effectiveness × defense. AC = 11 + proficiency bonus; any GM override replaces the displayed AC. Tier multipliers are automatic.</p>
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
  const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
- <section class="panel"><h3>Battle tracking</h3><form id="track-form" class="form-grid">
+ ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm))}<section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
  <label class="field">Status<select name="status">${statuses.map(s=>option(s,s,m.status||'None')).join('')}</select></label>
  <label class="field">Party slot <span class="hint">Storage = 0</span><select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,m.slot||0)).join('')}</select></label>
@@ -339,6 +449,9 @@ function gmForm(){
  <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp||defaultHp}"></label>
  <label class="field">Current HP<input name="currentHp" type="number" min="0" max="3000" required value="${d.currentHp??d.maxHp??defaultHp}"></label>
  <label class="field">Party slot<select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,d.slot??0)).join('')}</select></label>
+ <label class="field">Tera Type<select name="teraType">${TYPES.map(t=>option(t,t[0].toUpperCase()+t.slice(1),d.teraType||d.types?.[0]||'normal')).join('')}</select></label>
+ <label class="field full">Mega Evolution form<select name="megaSlug">${option('','No Mega assigned',d.megaForm?.slug||'')}${megaChoiceFor(d).map(f=>option(f.slug,f.name,d.megaForm?.slug||'')).join('')}</select>
+ <span class="hint">Register an official or custom Mega form in the library first. Only forms linked to this species are available.</span></label>
  <label class="field">Held item<input name="heldItem" maxlength="80" value="${esc(d.heldItem||'')}"></label>
  <div class="field full"><span class="eyebrow">Four move slots</span><p class="hint">Choose one move per slot. Each field searches the official learnset and your saved custom moves.</p>
  <div class="move-fields">${Array.from({length:4},(_,i)=>`<label class="field">Move ${i+1}<input name="move${i+1}" maxlength="48" list="known-moves" placeholder="Search or type a move" value="${esc((d.moves||[])[i]||'')}"></label>`).join('')}</div>
@@ -398,6 +511,7 @@ function render(){
  chip.textContent=GM_SITE?'GM authenticated':user.email||'Trainer';
  if(view==='assign'){root.innerHTML=gmForm();return}
  if(view==='custom'){root.innerHTML=customForm();return}
+ if(view==='mega-form'){root.innerHTML=editorUI(editingMega||{},statKeys,statLabels,option,esc);return}
  if(view==='custom-move'){root.innerHTML=catalogForm('move');return}
  if(view==='custom-ability'){root.innerHTML=catalogForm('ability');return}
  if(view==='rules'){root.innerHTML=rulesForm();return}
@@ -406,7 +520,7 @@ function render(){
  const mon=pokemon.find(m=>m.id===chosen);
  root.innerHTML=mon?detail(mon):listView();
 }
-function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';returnToAssign=false;view='party';render()}
+function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';returnToAssign=false;editingMega=null;megaImported=false;view='party';render()}
 async function selectMon(id){
  chosen=id;const m=pokemon.find(x=>x.id===id);
  if(m){moveInfo={};await lookupMoves(m.moves||[]);render()}
@@ -449,6 +563,16 @@ async function saveAssign(form){
  const level=Number(f.get('level')),slot=Number(f.get('slot'));
  const maxHp=Number(f.get('maxHp')),currentHp=Number(f.get('currentHp'));
  const moves=registrationMoves(f);
+ const teraType=String(f.get('teraType')||d.teraType||d.types?.[0]||'normal');
+ if(!TYPES.includes(teraType))throw Error('Choose a valid Tera type.');
+ const megaSlug=String(f.get('megaSlug')||'');
+ const selectedMega=megaSlug?megaForms.find(x=>x.slug===megaSlug):null;
+ if(megaSlug&&(!selectedMega||!megaCompatible(d,selectedMega)))throw Error('Selected Mega does not match the regular species.');
+ const megaForm=selectedMega?{
+  slug:selectedMega.slug,name:selectedMega.name,baseSpeciesKey:selectedMega.baseSpeciesKey,
+  baseStats:selectedMega.baseStats,types:selectedMega.types,ability:selectedMega.ability,
+  spriteUrl:selectedMega.spriteUrl||'',spriteData:selectedMega.spriteData||'',source:selectedMega.source||'custom'
+ }:null;
  if(!Number.isInteger(level)||level<1||level>100)throw Error('Level must be between 1 and 100.');
  if(!Number.isInteger(slot)||slot<0||slot>6)throw Error('Choose a valid party slot.');
  if(!Number.isInteger(maxHp)||maxHp<1||maxHp>3000||!Number.isInteger(currentHp)||currentHp<0||currentHp>maxHp)throw Error('Current HP must be between 0 and maximum HP.');
@@ -458,7 +582,11 @@ async function saveAssign(form){
   ownerUid,speciesKey:d.speciesKey,speciesName:d.speciesName,source:d.source,
   baseStats:d.baseStats,types:d.types,abilities:d.abilities||[],spriteUrl:d.spriteUrl||'',spriteData:d.spriteData||'',
   nickname:cap(f.get('nickname'),32),level,ability:cap(f.get('ability'),48),
-  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),updatedAt:serverTimestamp()
+  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),
+  teraType,megaForm,megaActive:(existing?.megaForm?.slug===megaSlug&&existing?.megaActive===true)||false,
+  teraActive:existing?.teraActive===true,zUsed:existing?.zUsed===true,
+  dynamaxTurns:Math.max(0,Math.min(3,Number(existing?.dynamaxTurns)||0)),
+  dynamaxUsed:existing?.dynamaxUsed===true,updatedAt:serverTimestamp()
  };
  // Swap out an occupied party slot in the target Trainer's collection.
  const occupying=pokemon.find(m=>m.ownerUid===ownerUid&&m.id!==existing?.id&&Number(m.slot)===slot&&slot>0);
@@ -505,6 +633,14 @@ root.addEventListener('click',async e=>{
   if(action==='reject'&&GM_SITE)await rejectRequest(b.dataset.id)
   if(action==='custom'&&GM_SITE){view='custom';chosen='';render()}
   if(action==='rules'&&GM_SITE){view='rules';chosen='';render()}
+  if(action==='mega-new'&&GM_SITE){editingMega=null;megaImported=false;view='mega-form';render()}
+  if(action==='mega-edit'&&GM_SITE){editingMega={...megaForms.find(m=>m.slug===b.dataset.id)};megaImported=editingMega.source==='official';view='mega-form';render()}
+  if(action==='mega-import'&&GM_SITE){busy=true;await importMega(document.getElementById('mega-form'))}
+  if(action.startsWith('g-')){
+    const mon=pokemon.find(x=>x.id===chosen);
+    if(!mon)throw Error('No Pokémon selected.');
+    await gimmickAction(action.slice(2),mon);
+  }
   if(action==='lookup'&&GM_SITE){
     busy=true;b.disabled=true;say('Fetching species stats…');
     const input=document.getElementById('species-query');
@@ -534,7 +670,11 @@ root.addEventListener('click',async e=>{
  }catch(err){fail(err)}finally{busy=false}
 });
 root.addEventListener('change',e=>{
- if(e.target.name==='name'&&(view==='custom-move'||view==='custom-ability')){
+ if(e.target.id==='tera-type'&&chosen){
+  const mon=pokemon.find(x=>x.id===chosen);
+  if(mon)setTeraType(mon,e.target.value).catch(fail);
+ }
+  if(e.target.name==='name'&&(view==='custom-move'||view==='custom-ability')){
   const record=(view==='custom-move'?customMoves:customAbilities).find(x=>x.name.toLowerCase()===e.target.value.trim().toLowerCase());
   const form=e.target.closest('form');
   if(record&&form){
@@ -567,6 +707,8 @@ root.addEventListener('submit',async e=>{
   if(form.id==='custom-ability-form'&&GM_SITE)await saveCatalog(form,false);
   if(form.id==='request-form'&&!GM_SITE)await saveRequest(form);
   if(form.id==='rules-form'&&GM_SITE)await saveRules(form);
+  if(form.id==='mega-form'&&GM_SITE)await saveMegaForm(form);
+  if(form.id==='gimmick-unlock-form'&&GM_SITE)await saveUnlocks(form);
  }catch(err){fail(err)}finally{busy=false;if(button?.isConnected)button.disabled=false}
 });
 
