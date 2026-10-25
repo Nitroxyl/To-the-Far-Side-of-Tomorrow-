@@ -282,11 +282,11 @@ function validUpload(value){
 function artworkEditor(type,record){
  if(type!=='wildlife' && type!=='sightings')return '';
  const uploaded=validUpload(record.artworkData)?record.artworkData:'';
- const style=record.artworkStyle==='cutout'?'cutout':'framed';
+ const style=record.artworkStyle==='framed'?'framed':record.artworkStyle==='cutout'?'cutout':uploaded||safeUrl(record.artworkUrl)?'framed':'cutout';
  return '<section class="fw-upload-editor">'+
   '<div class="fw-relation-heading">CUSTOM POKÉMON ARTWORK</div>'+
   '<p>Upload your own PNG, JPG or WebP; the image will be compressed and saved with this record. The existing image URL is still an alternative.</p>'+
-  '<div class="fw-upload-layout"><div id="fw-image-preview">'+artMarkup(record.pokemon,record.artworkUrl,uploaded,style)+'</div>'+
+  '<div class="fw-upload-layout"><div id="fw-image-preview">'+artMarkup(exposedPokemon(record.pokemon)?record.pokemon:'Artwork preview',record.artworkUrl,uploaded,style)+'</div>'+
   '<div class="fw-upload-controls"><label>Upload artwork from device<input id="fw-image-picker" type="file" accept="image/png,image/jpeg,image/webp"></label>'+
   '<label>Image display<select id="fw-art-style" name="fw-art-style">'+
   '<option value="framed" '+(style==='framed'?'selected':'')+'>Framed (good for backgrounds)</option>'+
@@ -360,9 +360,11 @@ document.addEventListener('change',async event=>{
   const result=await compressArtwork(file);
   if(token!==uploadSequence || app.getEditingRecord?.()!==targetRecord)return;
   targetRecord.artworkData=result;
+  const displayStyle=document.getElementById('fw-art-style');
+  if(displayStyle?.value==='cutout'&&!targetRecord.artworkStyle){displayStyle.value='framed'}
   const preview=document.getElementById('fw-image-preview');
   if(preview){
-   preview.innerHTML=artMarkup(targetRecord.pokemon,targetRecord.artworkUrl,result,document.getElementById('fw-art-style')?.value);
+   preview.innerHTML=artMarkup(exposedPokemon(targetRecord.pokemon)?targetRecord.pokemon:'Artwork preview',targetRecord.artworkUrl,result,document.getElementById('fw-art-style')?.value);
    paintArtwork(preview);
   }
   uploadState('Image ready ('+Math.ceil(result.length/1024)+' KB encoded). Click Save changes, then Publish to players.');
@@ -380,7 +382,7 @@ document.addEventListener('click',event=>{
  if(!record)return;
  record.artworkData='';
  const preview=document.getElementById('fw-image-preview');
- if(preview){preview.innerHTML=artMarkup(record.pokemon,record.artworkUrl,'',document.getElementById('fw-art-style')?.value);paintArtwork(preview)}
+ if(preview){preview.innerHTML=artMarkup(exposedPokemon(record.pokemon)?record.pokemon:'Artwork preview',record.artworkUrl,'',document.getElementById('fw-art-style')?.value);paintArtwork(preview)}
  uploadState('Uploaded image cleared. Click Save changes to keep this change.');
 });
 
