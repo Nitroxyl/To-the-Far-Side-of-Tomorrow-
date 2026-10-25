@@ -165,7 +165,7 @@ function gmForm(){
  <label class="field">Held item<input name="heldItem" maxlength="80" value="${esc(d.heldItem||'')}"></label>
  <label class="field full">Four moves (comma-separated)<input name="moves" maxlength="240" placeholder="Quick Attack, Force Palm, Endure, Feint" value="${esc((d.moves||[]).join(', '))}" list="known-moves"><datalist id="known-moves">${(d.knownMoves||[]).slice(0,120).map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist></label>
  <label class="field full">Location obtained / history<input name="origin" maxlength="150" value="${esc(d.origin||'')}"></label>
- <label class="field full">GM notes / details<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
+ <label class="field full">Shared notes (visible to Trainer)<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
  <p class="hint full">Official six base stats, types, abilities and artwork are imported automatically. Default HP is calculated from our older V4 baseline until the finalized V5.2 HP rule is entered; you can override HP above. The obsolete V4 AC is NOT used.</p>
  <div class="actions"><button class="btn primary" type="submit" ${draft||existing?'':'disabled'}>${existing?'Save Pokémon':'Assign to Trainer'}</button></div>
  </form></section>`;
