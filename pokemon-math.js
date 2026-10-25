@@ -12,7 +12,11 @@ export function statBand(value) {
   const start = Math.floor(Math.max(0,Number(value)||0)/20)*20;
   return `${start}–${start+19}`;
 }
-export function combatSummary(mon) {
+export function tierMultiplier(value,bands) {
+  const i=Math.floor(Math.max(0,Number(value)||0)/20);
+  return Array.isArray(bands)&&Number.isFinite(bands[i])&&bands[i]>0?bands[i]:null;
+}
+export function combatSummary(mon,rules=null) {
   const stats=mon.baseStats||{};
   return {
     hp:mon.maxHp,
@@ -21,7 +25,11 @@ export function combatSummary(mon) {
     physicalDefenseBand:statBand(stats.defense),
     specialDefenseBand:statBand(stats.specialDefense),
     effectiveSpeed:stats.speed,
-    universalAC:null // V5.2 exact value has not been supplied. Never use superseded V4 AC.
+    universalAC:Number.isInteger(rules?.universalAc)?rules.universalAc:null,
+    physicalOffenseMultiplier:tierMultiplier(stats.attack,rules?.offenseBands),
+    specialOffenseMultiplier:tierMultiplier(stats.specialAttack,rules?.offenseBands),
+    physicalDefenseMultiplier:tierMultiplier(stats.defense,rules?.defenseBands),
+    specialDefenseMultiplier:tierMultiplier(stats.specialDefense,rules?.defenseBands)
   };
 }
 export function fromPokeApi(p) {
