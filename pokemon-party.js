@@ -19,7 +19,8 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null;
+let roleAllowed=false,accessApproved=false;
 let pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
@@ -250,15 +251,16 @@ function gate(message){
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
+ roleAllowed=false;accessApproved=false;
  mirrorDesired.clear();mirrorLast.clear();
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
- if(!GM_SITE&&!user.emailVerified){root.innerHTML='<section class="panel"><h2>Verify your email first</h2><p>Return to the Fieldwork page to finish email verification.</p><a href="./index.html">Open Trainer access</a></section>';return}
- if(GM_SITE&&user.uid!==GM_UID){root.innerHTML='<section class="panel"><h2>GM account required</h2><p>This page only accepts the campaign GM account.</p></section>';return}
- if(!allowed){root.innerHTML='<section class="panel"><h2>Waiting for Trainer approval</h2><p>Your account is not approved yet. Open the Fieldwork site to request access.</p><a href="./index.html">Trainer registration</a></section>';return}
+ if(!GM_SITE&&!user.emailVerified&&user.uid!==GM_UID){root.innerHTML='<section class="panel"><h2>Verify your email first</h2><p>Return to the Fieldwork page to finish email verification.</p><a href="./index.html">Open Trainer access</a></section>';return}
+ if(GM_SITE&&!roleAllowed){root.innerHTML='<section class="panel"><h2>GM account required</h2><p>This account has not been granted GM permissions. Use Account Access to request authorization.</p></section>';return}
+ if(!allowed){root.innerHTML='<section class="panel"><h2>Waiting for Trainer approval</h2><p>Your existing account needs Trainer approval or a GM role. You do not need to register again.</p><a href="./account-access.html">Check account access / copy UID</a></section>';return}
  render();
 }
 function unlocks(uid){return GM_SITE?trainerUnlocks[uid]||initialUnlocks():playerUnlocks;}
@@ -752,16 +754,41 @@ try{
  const config=window.SANTARA_FIREBASE_CONFIG;
  if(!config?.projectId)throw Error('Firebase configuration is missing.');
  app=getApps().length?getApp():initializeApp(config);auth=getAuth(app);store=getFirestore(app);
- onAuthStateChanged(auth,next=>{
-   stop();user=next;document.getElementById('user-chip').textContent=next?.email||'Not signed in';
-   if(!next)return guard();
-   if(GM_SITE){if(next.uid!==GM_UID)return guard();allowed=true;connect();return}
-   if(!next.emailVerified)return guard();
-   stopAccess=onSnapshot(doc(store,'santara_player_access',next.uid),snapshot=>{
-     const wasAllowed=allowed;allowed=snapshot.exists()&&snapshot.data().enabled===true;
-     if(allowed&&!wasAllowed)connect();
-     else if(!allowed&&wasAllowed){stopPokemon?.();stopPokemon=null;pokemon=[];guard()}
-     else guard();
-   },e=>{fail(e);guard()});
+ function disconnectManagedData(){
+ for(const key of ['stopPokemon','stopGimmicks','stopMegaForms','stopRules','stopRequests','stopApprovals','stopCards','stopMoves','stopAbilities','stopCustoms']){
+  // Stop active subscriptions; the user's authenticated role subscription remains live.
+  const fn=({
+   stopPokemon,stopGimmicks,stopMegaForms,stopRules,stopRequests,
+   stopApprovals,stopCards,stopMoves,stopAbilities,stopCustoms
+  })[key];
+  fn?.();
+ }
+ stopPokemon=stopGimmicks=stopMegaForms=stopRules=stopRequests=stopApprovals=stopCards=stopMoves=stopAbilities=stopCustoms=null;
+ pokemon=[];trainers=[];collectionReady=false;
+}
+function reconcileAccess(){
+ const eligible=GM_SITE?roleAllowed:(roleAllowed||accessApproved);
+ if(eligible&&!allowed){allowed=true;connect();return}
+ if(!eligible&&allowed){allowed=false;disconnectManagedData();guard();return}
+ if(!eligible)guard();
+}
+onAuthStateChanged(auth,next=>{
+   stop();user=next;
+   document.getElementById('user-chip').textContent=next?.email||'Not signed in';
+   if(!next){guard();return}
+   if(!next.emailVerified&&next.uid!==GM_UID){guard();return}
+   if(next.uid===GM_UID){roleAllowed=true;reconcileAccess();return}
+   // A GM role is tied to this verified UID and email and can be revoked.
+   stopRole=onSnapshot(doc(store,'santara_gm_accounts',next.uid),snap=>{
+     const role=snap.exists()?snap.data():null;
+     roleAllowed=role?.enabled===true && role.email===next.email;
+     reconcileAccess();
+   },err=>{roleAllowed=false;reconcileAccess();fail(err)});
+   if(!GM_SITE){
+     stopAccess=onSnapshot(doc(store,'santara_player_access',next.uid),snap=>{
+       accessApproved=snap.exists()&&snap.data().enabled===true;
+       reconcileAccess();
+     },err=>{accessApproved=false;reconcileAccess();fail(err)});
+   }
  },fail);
 }catch(e){fail(e);root.innerHTML='<section class="panel"><h2>Firebase unavailable</h2><p>Check the site configuration and connection.</p></section>'}

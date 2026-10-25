@@ -33,11 +33,11 @@ const btn=(label,action)=>'<button type="button" data-auth-action="'+action+'" s
 const gate=(title,body)=>{overlay.hidden=false;overlay.style.display='flex';accessBody().innerHTML='<div style="font-size:11px;color:#8adacc;letter-spacing:2px;font-weight:800">SANTARA · TRAINER ACCESS</div><h2 style="margin:8px 0 13px;font-size:25px">'+esc(title)+'</h2>'+body};
 const warn=message=>{const el=overlay.querySelector('#access-message');if(el)el.textContent=message};
 let app=null,auth=null,store=null,currentUser=null,approved=false,pending=false;
-let stopAccess=null,stopRequest=null,stopPublished=null,stopMyCard=null,stopRoster=null;
+let stopAccess=null,stopRequest=null,stopPublished=null,stopMyCard=null,stopRoster=null,stopRole=null;
 let ownCard=null,roster=[],formSaving=false,connectedUser='';
 const clearListeners=()=>{
-  for(const fn of [stopAccess,stopRequest,stopPublished,stopMyCard,stopRoster])if(fn)fn();
-  stopAccess=stopRequest=stopPublished=stopMyCard=stopRoster=null;
+  for(const fn of [stopAccess,stopRequest,stopPublished,stopMyCard,stopRoster,stopRole])if(fn)fn();
+  stopAccess=stopRequest=stopPublished=stopMyCard=stopRoster=stopRole=null;
   connectedUser='';approved=false;ownCard=null;roster=[];
 };
 function showLogin(){
@@ -45,7 +45,7 @@ function showLogin(){
     '<form id="trainer-auth-form" style="display:grid;gap:11px"><label>Email<input required type="email" name="email" autocomplete="email" placeholder="trainer@example.com" style="display:block;width:100%;background:#1d3442;border:1px solid #527582;border-radius:8px;color:white;padding:11px"></label>'+
     '<label>Password<input required type="password" name="password" minlength="6" autocomplete="current-password" style="display:block;width:100%;background:#1d3442;border:1px solid #527582;border-radius:8px;color:white;padding:11px"></label>'+
     '<div>'+btn('Sign in','login')+btn('Create account','register')+'</div></form>'+
-    '<div>'+btn('Continue with Google','google')+btn('Reset password','reset')+'</div><p id="access-message" role="status" style="color:#e7c58b"></p>');
+    '<div>'+btn('Continue with Google','google')+btn('Reset password','reset')+'</div><p><a href="./account-access.html" style="color:#7be0c9">Existing account / GM access</a></p><p id="access-message" role="status" style="color:#e7c58b"></p>');
   status('Sign in to unlock fieldwork');
 }
 function showUnverified(){
@@ -55,7 +55,7 @@ function showUnverified(){
 }
 function showAwaiting(){
   gate('Awaiting GM approval','<p style="color:#b7cbd1">Your email is verified: <strong>'+esc(currentUser?.email)+'</strong>. '+(pending?'Your access request has been sent. The GM must approve your account.':'Request access so the GM can approve your account.')+'</p>'+
-  '<div>'+(pending?'':btn('Request Trainer access','request'))+btn('Sign out','logout')+'</div><p id="access-message" role="status" style="color:#e7c58b"></p>');
+  '<div>'+(pending?'':btn('Request Trainer access','request'))+btn('Sign out','logout')+'</div><p><a href="./account-access.html" style="color:#7be0c9">Check your existing account UID / GM access</a></p><p id="access-message" role="status" style="color:#e7c58b"></p>');
   status('Waiting for GM approval');
 }
 function showAccess(){
@@ -70,20 +70,34 @@ async function verifyRefresh(){
   if(currentUser.emailVerified) await checkAccount(currentUser);
   else showUnverified();
 }
+function checkApprovalFallback(){
+ if(stopRequest||stopAccess)return;
+ showAwaiting();
+ const requestRef=doc(store,'santara_access_requests',currentUser.uid);
+ const accessRef=doc(store,'santara_player_access',currentUser.uid);
+ stopRequest=onSnapshot(requestRef,snap=>{pending=snap.exists();if(!approved)showAwaiting()},e=>warn(e.message));
+ stopAccess=onSnapshot(accessRef,snap=>{
+  const isApproved=snap.exists()&&snap.data().enabled===true;
+  if(isApproved){approved=true;activate()}
+  else{if(approved){stopConnected();approved=false;}showAwaiting()}
+ },e=>warn(e.message));
+}
 async function checkAccount(user){
-  clearListeners();currentUser=user; pending=false;
-  if(!user){showLogin();return}
-  if(!user.emailVerified){showUnverified();return}
-  if(user.uid===GM_UID){approved=true;activate();return}
-  showAwaiting();
-  const requestRef=doc(store,'santara_access_requests',user.uid);
-  const accessRef=doc(store,'santara_player_access',user.uid);
-  stopRequest=onSnapshot(requestRef,snap=>{pending=snap.exists();if(!approved)showAwaiting()},e=>warn(e.message));
-  stopAccess=onSnapshot(accessRef,snap=>{
-    const isApproved=snap.exists()&&snap.data().enabled===true;
-    if(isApproved){approved=true;activate()}
-    else{if(approved){stopConnected();approved=false;}showAwaiting()}
-  },e=>warn(e.message));
+ clearListeners();currentUser=user;pending=false;
+ if(!user){showLogin();return}
+ if(!user.emailVerified && user.uid!==GM_UID){showUnverified();return}
+ if(user.uid===GM_UID){approved=true;activate();return}
+ // A verified GM role also grants Player Dex/Trainer access, even when
+ // the account predates santara_player_access and Trainer Cards.
+ stopRole=onSnapshot(doc(store,'santara_gm_accounts',user.uid),snap=>{
+  const data=snap.exists()?snap.data():null;
+  if(data?.enabled===true && data.email===user.email){
+   stopRequest?.();stopRequest=null;stopAccess?.();stopAccess=null;
+   approved=true;activate();return;
+  }
+  // Role revoked: ordinary approval is still sufficient for Player access.
+  if(!stopAccess)checkApprovalFallback();
+ },err=>{warn('GM role lookup: '+err.message);checkApprovalFallback()});
 }
 function stopConnected(){
   for(const fn of [stopPublished,stopMyCard,stopRoster])if(fn)fn();
