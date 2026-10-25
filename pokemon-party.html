@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1019">
+<title>Pokémon Party · Santara Fieldwork</title>
+<link rel="stylesheet" href="./pokemon-party.css">
+<script src="./firebase-config.js"></script>
+</head>
+<body>
+<header class="bar"><a class="brand" href="./index.html">✦ SANTARA <span>FIELDWORK</span></a><nav><a href="./index.html">Fieldwork</a><a href="./index.html?tab=trainer" id="passport-link">Trainer Cards</a></nav></header>
+<main class="shell">
+  <section class="hero"><div><span class="eyebrow" id="edition-name">POKÉMON FIELD RECORDS</span><h1 id="page-title">My Pokémon<span class="accent">.</span></h1><p id="page-lead">Your party, storage and individual battle records, linked to your Trainer account.</p></div><span id="user-chip" class="chip">Checking access…</span></section>
+  <p id="feedback" role="status" aria-live="polite"></p>
+  <div id="party-root"><section class="panel"><p>Signing in and loading Pokémon records…</p></section></div>
+  <footer>SANTARA REGIONAL RESEARCH NETWORK · TRAINER RECORDS</footer>
+</main>
+<script type="module" src="./pokemon-party.js?v=1"></script>
+</body>
+</html>
