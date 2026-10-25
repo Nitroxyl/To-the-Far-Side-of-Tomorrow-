@@ -230,7 +230,7 @@ function group(type,items){
 }
 function artMarkup(name,url){
  const imageURL=safeUrl(url);
- return '<span class="fw-artwork fw-empty"><span class="fw-art-fallback">◇</span><img loading="lazy" hidden alt="Artwork: '+esc(name||'Pokémon')+'" data-fieldwork-pokemon="'+esc(name||'')+'" data-fieldwork-artwork="'+esc(imageURL)+'"></span>';
+ return '<span class="fw-artwork fw-empty"><span class="fw-art-fallback">◇</span><img loading="eager" decoding="async" hidden alt="Artwork: '+esc(name||'Pokémon')+'" data-fieldwork-pokemon="'+esc(name||'')+'" data-fieldwork-artwork="'+esc(imageURL)+'"></span>';
 }
 function closeModal(){document.querySelector('#fw-info-modal')?.remove()}
 function viewDetail(type,identifier){
