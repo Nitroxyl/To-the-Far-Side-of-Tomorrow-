@@ -189,6 +189,7 @@ async function gimmickAction(code,m){
   if(patch.teraActive){patch.megaActive=false;patch.dynamaxTurns=0;}
  }else if(code==='mega'){
   if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
+  if(!m.megaActive&&pokemon.some(p=>p.ownerUid===m.ownerUid&&p.id!==m.id&&p.megaActive===true))throw Error('Another Pokémon is already Mega Evolved. Revert it first.');
   patch.megaActive=!m.megaActive;
   if(patch.megaActive){patch.teraActive=false;patch.dynamaxTurns=0;}
  }else if(code==='z'){
