@@ -1,9 +1,10 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import {getFirestore,collection,doc,query,where,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=v52-requests-20261025-2';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js';
+import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -213,11 +214,43 @@ async function gimmickAction(code,m){
  await updateDoc(doc(store,'santara_pokemon',m.id),patch);
 }
 
+// Public roster is a small, deliberately non-sensitive mirror for shared Trainer Cards.
+const mirrorDesired=new Map(),mirrorBusy=new Set(),mirrorLast=new Map();
+function publishTrainerParty(uid){
+ if(!uid || !(GM_SITE||uid===user?.uid))return;
+ const slots=publicPartySlots(pokemon.filter(m=>m.ownerUid===uid));
+ const signature=partySignature(slots);
+ mirrorDesired.set(uid,signature);
+ if(mirrorLast.get(uid)===signature || mirrorBusy.has(uid))return;
+ mirrorBusy.add(uid);
+ (async()=>{
+  try{
+   while(mirrorDesired.has(uid)){
+    const next=mirrorDesired.get(uid);
+    const target=doc(store,'santara_public_parties',uid);
+    const old=await getDoc(target);
+    if(!old.exists()||partySignature(old.data().slots)!==next){
+     await setDoc(target,{ownerUid:uid,slots:JSON.parse(next),updatedAt:serverTimestamp()});
+    }
+    mirrorLast.set(uid,next);
+    if(mirrorDesired.get(uid)===next)break;
+   }
+  }catch(err){console.warn('Public Trainer Card party sync:',err.message)}
+  finally{mirrorBusy.delete(uid)}
+ })();
+}
+function publishVisibleParties(){
+ if(!collectionReady)return;
+ if(!GM_SITE){publishTrainerParty(user?.uid);return}
+ const users=new Set([...pokemon.map(m=>m.ownerUid),...trainers.map(t=>t.uid),...trainerCards.map(t=>t.uid)]);
+ for(const uid of users)publishTrainerParty(uid);
+}
 function gate(message){
  root.innerHTML=`<section class="panel"><h2>${esc(message)}</h2><p>Use the same Firebase account as the Santara Fieldwork website. New players must verify their email and be approved by the GM.</p>
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
+ mirrorDesired.clear();mirrorLast.clear();
  [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms].forEach(fn=>fn?.());
  stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
@@ -245,6 +278,7 @@ function connect(){
  const col=collection(store,'santara_pokemon');
  stopPokemon=onSnapshot(GM_SITE?col:query(col,where('ownerUid','==',user.uid)),snapshot=>{
    collectionReady=true;collectionError='';pokemon=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+   publishVisibleParties();
    pokemon.sort((a,b)=>(a.slot||99)-(b.slot||99)||String(a.nickname||a.speciesName).localeCompare(String(b.nickname||b.speciesName)));
    if(chosen&&!pokemon.find(m=>m.id===chosen))chosen='';
    render();
@@ -253,11 +287,13 @@ function connect(){
  if(GM_SITE){
    stopApprovals=onSnapshot(collection(store,'santara_player_access'),snapshot=>{
      trainers=snapshot.docs.map(d=>({uid:d.id,...d.data()})).filter(x=>x.enabled);
+     publishVisibleParties();
      if(!ownerFilter&&trainers.length)ownerFilter=trainers[0].uid;
      render();
    },fail);
    stopCards=onSnapshot(collection(store,'santara_trainer_cards'),snapshot=>{
-     trainerCards=snapshot.docs.map(d=>({uid:d.id,...d.data()}));if(view==='party'||view==='storage')render();
+     trainerCards=snapshot.docs.map(d=>({uid:d.id,...d.data()}));
+     publishVisibleParties();if(view==='party'||view==='storage')render();
    },e=>console.warn('Trainer Card names could not load:',e.message));
  }
  stopMoves=onSnapshot(collection(store,'santara_custom_moves'),snapshot=>{
