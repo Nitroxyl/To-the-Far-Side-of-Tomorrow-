@@ -1,7 +1,7 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import {getFirestore,collection,doc,query,where,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi} from './pokemon-math.js';
+import {getFirestore,collection,doc,query,where,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -16,8 +16,8 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null;
-let pokemon=[],trainers=[],customs=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,moveInfo={},busy=false;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null;
+let pokemon=[],trainers=[],customs=[],requests=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',collectionReady=false,collectionError='',moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -32,8 +32,8 @@ function gate(message){
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=null;pokemon=[];trainers=[];customs=[];battleRules=null;allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=null;pokemon=[];trainers=[];customs=[];requests=[];battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -43,26 +43,27 @@ function guard(){
  render();
 }
 function connect(){
- stopRules=onSnapshot(doc(store,'santara_battle_rules','v5_2'),snapshot=>{battleRules=snapshot.exists()?snapshot.data():null;render()},e=>say('Combat settings: '+e.message));
+ stopRules=onSnapshot(doc(store,'santara_battle_rules','v5_2'),snapshot=>{battleRules=snapshot.exists()?snapshot.data():null;render()},e=>{battleRules=null;console.warn('Optional GM overrides unavailable:',e.message);});
  if(stopPokemon)stopPokemon();
  const col=collection(store,'santara_pokemon');
  stopPokemon=onSnapshot(GM_SITE?col:query(col,where('ownerUid','==',user.uid)),snapshot=>{
-   pokemon=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+   collectionReady=true;collectionError='';pokemon=snapshot.docs.map(d=>({id:d.id,...d.data()}));
    pokemon.sort((a,b)=>(a.slot||99)-(b.slot||99)||String(a.nickname||a.speciesName).localeCompare(String(b.nickname||b.speciesName)));
    if(chosen&&!pokemon.find(m=>m.id===chosen))chosen='';
    render();
- },e=>fail(e));
+ },e=>{collectionReady=false;collectionError=e?.message||String(e);render();say('Pokémon collection: '+collectionError)});
+ stopRequests=onSnapshot(GM_SITE?collection(store,'santara_pokemon_requests'):query(collection(store,'santara_pokemon_requests'),where('ownerUid','==',user.uid)),snap=>{requests=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));render()},e=>console.warn('Pokémon requests unavailable:',e.message));
  if(GM_SITE){
    stopApprovals=onSnapshot(collection(store,'santara_player_access'),snapshot=>{
      trainers=snapshot.docs.map(d=>({uid:d.id,...d.data()})).filter(x=>x.enabled);
      if(!ownerFilter&&trainers.length)ownerFilter=trainers[0].uid;
      render();
    },fail);
-   stopCustoms=onSnapshot(collection(store,'santara_species_overrides'),snapshot=>{
+ }
+ stopCustoms=onSnapshot(collection(store,'santara_species_overrides'),snapshot=>{
      customs=snapshot.docs.map(d=>({key:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
      render();
-   },fail);
- }
+   },e=>console.warn('Custom species catalogue unavailable:',e.message));
 }
 async function fetchOfficial(name){
  const key=cap(name,70).toLowerCase().replace(/\s+/g,'-');
@@ -103,13 +104,87 @@ function card(m){
  <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((m.types||[]).join(' / '))}</span>
  <span class="hpbar ${cls}"><i style="width:${pct}%"></i></span><span class="sub">${m.currentHp}/${m.maxHp} HP · ${esc(m.status||'None')}</span></span></button>`;
 }
+
+function requestForm(){
+ const d=requestDraft||{};
+ return `<section class="panel"><div class="toolbar"><h2>Request a Pokémon</h2><button class="btn" data-act="back">← Back to Party</button></div>
+ <p>Choose a species, check its official stats, and submit it for GM approval. Your GM decides when it joins your party, its level and its moves.</p>
+ <form id="request-form" class="form-grid">
+ <label class="field full">Pokémon species or custom form
+ <input name="species" id="request-species" required maxlength="85" list="request-species-list"
+ placeholder="e.g. Riolu, Dreepy or a registered custom Pokémon" value="${esc(d.speciesName||'')}">
+ <datalist id="request-species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
+ <div class="actions"><button type="button" class="btn" data-act="request-lookup">Fetch Pokémon stats</button></div>
+ <label class="field">Requested level<input type="number" name="level" required min="1" max="100" value="${d.level||5}"></label>
+ <label class="field">Nickname (optional)<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
+ <label class="field full">Where did you obtain this Pokémon?<textarea name="notes" maxlength="300" placeholder="Mention the quest, location or encounter so the GM can review it.">${esc(d.notes||'')}</textarea></label>
+ ${d.baseStats?`<div class="field full"><span class="eyebrow">Species preview · ${esc((d.types||[]).join(' / '))}</span><div class="stats-grid">${statKeys.map((k,i)=>`<div class="stat"><b>${Number(d.baseStats[k])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div></div>`:''}
+ <p class="hint full">Requests are not automatically added to your party. Once the GM accepts one, its stats and artwork will appear in My Pokémon.</p>
+ <div class="actions"><button class="btn primary" type="submit" ${d.baseStats?'':'disabled'}>Send request to GM</button></div>
+ </form></section>`;
+}
+function requestsSection(){
+ if(GM_SITE){
+  const pending=requests.filter(x=>x.status==='pending');
+  return `<section class="panel"><div class="toolbar"><h3>Pokémon requests <span class="chip">${pending.length} pending</span></h3></div>
+  <p>Review Trainer submissions before adding Pokémon to their collections.</p>
+  ${pending.length?pending.map(r=>`<article class="entry"><b>${esc(r.speciesName)}</b> · requested Lv. ${r.level}
+  <p class="hint">${esc(trainers.find(t=>t.uid===r.ownerUid)?.email||r.ownerUid)}${r.nickname?' · '+esc(r.nickname):''}${r.notes?' — '+esc(r.notes):''}</p>
+  <div class="actions"><button class="btn primary small" data-act="review" data-id="${esc(r.id)}">Review & assign</button>
+  <button class="btn small danger" data-act="reject" data-id="${esc(r.id)}">Decline</button></div></article>`).join(''):'<p class="hint">No pending Pokémon requests.</p>'}</section>`;
+ }
+ const recent=requests.filter(x=>x.ownerUid===user?.uid).slice(0,10);
+ return `<section class="panel"><div class="toolbar"><h3>Pokémon requests</h3>
+ <button class="btn primary" data-act="request">+ Request Pokémon</button></div>
+ ${recent.length?recent.map(r=>`<p class="hint"><b>${esc(r.speciesName)}</b> · requested Lv. ${r.level} · ${esc(r.status)}</p>`).join(''):'<p class="hint">Caught or received a new Pokémon? Request it here and your GM can assign it.</p>'}</section>`;
+}
+async function saveRequest(form){
+ if(GM_SITE)throw Error('Use the GM assignment form instead.');
+ const f=new FormData(form),speciesName=cap(f.get('species'),85);
+ const species=requestDraft;
+ if(!species?.baseStats || speciesName.toLowerCase()!==species.speciesName.toLowerCase())
+  throw Error('Fetch the selected Pokémon first so its species is verified.');
+ const level=Number(f.get('level'));
+ if(!Number.isInteger(level)||level<1||level>100)throw Error('Choose a level from 1 to 100.');
+ const pending=requests.filter(x=>x.status==='pending');
+ if(pending.length>=10)throw Error('You already have ten pending requests. Ask your GM to review them first.');
+ await addDoc(collection(store,'santara_pokemon_requests'),{
+  ownerUid:user.uid,speciesKey:species.speciesKey,speciesName:species.speciesName,
+  level,nickname:cap(f.get('nickname'),32),notes:cap(f.get('notes'),300),
+  status:'pending',createdAt:serverTimestamp(),resolvedAt:null
+ });
+ say(`${species.speciesName} request sent to your GM.`);
+ clearSelection();
+}
+async function reviewRequest(id){
+ const request=requests.find(r=>r.id===id&&r.status==='pending');
+ if(!request)throw Error('This request has already been handled.');
+ if(!trainers.some(t=>t.uid===request.ownerUid))throw Error('The requesting Trainer is no longer approved.');
+ ownerFilter=request.ownerUid;
+ const species=request.speciesKey.startsWith('custom:')
+  ?customFrom(customs.find(x=>'custom:'+x.slug===request.speciesKey))
+  :await fetchOfficial(request.speciesKey);
+ activeRequestId=request.id;
+ editingId='';chosen='';draft={...species,level:request.level,nickname:request.nickname,
+  origin:request.notes,maxHp:maxHpV4Baseline(species.baseStats,request.level),
+  currentHp:maxHpV4Baseline(species.baseStats,request.level),ownerUid:request.ownerUid};
+ view='assign';render();
+ say('Check the requested Pokémon, set its party slot and moves, then click Assign to Trainer.');
+}
+async function rejectRequest(id){
+ const r=requests.find(x=>x.id===id&&x.status==='pending');if(!r)return;
+ if(!confirm(`Decline ${r.speciesName} request?`))return;
+ await updateDoc(doc(store,'santara_pokemon_requests',id),{status:'rejected',resolvedAt:serverTimestamp()});
+ say('Pokémon request declined.');
+}
+
 function roster(){
  const mine=GM_SITE?pokemon.filter(m=>m.ownerUid===ownerFilter):pokemon;
  const active=mine.filter(m=>Number(m.slot)>=1&&Number(m.slot)<=6).sort((a,b)=>a.slot-b.slot);
  const storage=mine.filter(m=>!Number(m.slot)||Number(m.slot)>6);
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="toolbar"><h2>${GM_SITE?'Trainer Party':'Current Party'} <span class="chip">${active.length}/6</span></h2>
- <div class="tabs">${GM_SITE?`<select id="trainer-filter" aria-label="Select Trainer">${option('','Select trainer…',ownerFilter)}${trainers.map(t=>option(t.uid,t.email||t.uid,ownerFilter)).join('')}</select><button class="btn primary" data-act="new">+ Assign Pokémon</button>`:''}
+ <div class="tabs">${GM_SITE?`<select id="trainer-filter" aria-label="Select Trainer">${option('','Select trainer…',ownerFilter)}${trainers.map(t=>option(t.uid,t.email||t.uid,ownerFilter)).join('')}</select><button class="btn primary" data-act="new">+ Assign Pokémon</button>`:'<button class="btn primary" data-act="request">+ Request Pokémon</button>'}
  <button class="btn ${view==='party'?'primary':''}" data-act="party">Party</button><button class="btn ${view==='storage'?'primary':''}" data-act="storage">Storage (${storage.length})</button></div></div>`;
 }
 function listView(){
@@ -118,7 +193,7 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Configure the universal AC and 20-point multiplier table once so every Pokémon uses the proper campaign calculations.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'V5.2 table saved to Firestore.':'V5.2 modifiers not entered yet.'}</p></section>`:''}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>`:''}${requestsSection()}`;
 }
 function detail(m){
  const s=m.baseStats||{},d=combatSummary(m,battleRules);
@@ -127,8 +202,8 @@ function detail(m){
  <div class="detail-head">${artwork(m)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span></h2><p>${esc(m.speciesName)} · ${esc((m.types||[]).join(' / '))} · ${esc(m.ability||'No ability')}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p></div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet</h3><div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
- <div class="stats-grid"><div class="stat"><b>${d.universalAC??'—'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
- <p class="flag">${battleRules?'Uses GM-entered V5.2 rules. Unfilled tiers show Pending.':'GM has not configured the exact V5.2 modifiers. No obsolete V4 AC is used.'}</p>
+ <div class="stats-grid"><div class="stat"><b>${d.universalAC??'11 + PB'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
+ <p class="flag">V5.2: damage dice × offense × STAB × type effectiveness × defense. AC = 11 + proficiency bonus; any GM override replaces the displayed AC. Tier multipliers are automatic.</p>
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
  const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div></div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
@@ -173,12 +248,12 @@ function gmForm(){
 function rulesForm(){
  const r=battleRules||{};
  return `<section class="panel"><div class="toolbar"><h2>V5.2 combat configuration</h2><button class="btn" data-act="back">← Cancel</button></div>
- <p>Enter the finalized V5.2 values, rather than the superseded V4 formulas. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk reads the 200–219 value (the 11th entry).</p>
+ <p>Enter the finalized V5.2 values, rather than the superseded V4 formulas. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk uses the 200–249 tier; 250+ is the final tier. The values below are prefilled from our V5.2 table.</p>
  <form id="rules-form" class="form-grid">
  <label class="field">Universal AC<input name="universalAc" type="number" min="1" max="50" placeholder="Enter actual V5.2 value" value="${r.universalAc??''}"></label>
- <label class="field full">Offense multipliers (comma-separated)<textarea name="offenseBands" placeholder="20-point offense tier multipliers">${(r.offenseBands||[]).join(', ')}</textarea></label>
- <label class="field full">Defense multipliers (comma-separated)<textarea name="defenseBands" placeholder="20-point defense tier multipliers">${(r.defenseBands||[]).join(', ')}</textarea></label>
- <p class="hint full">Leave a field blank if its exact values have not been finalized. Unconfigured modifiers will display Pending, and players still see the original species base stats.</p>
+ <label class="field full">Offense multipliers (comma-separated)<textarea name="offenseBands" placeholder="20-point offense tier multipliers">${(r.offenseBands?.length?r.offenseBands:V52_TIERS.map(t=>t.offense)).join(', ')}</textarea></label>
+ <label class="field full">Defense multipliers (comma-separated)<textarea name="defenseBands" placeholder="20-point defense tier multipliers">${(r.defenseBands?.length?r.defenseBands:V52_TIERS.map(t=>t.defense)).join(', ')}</textarea></label>
+ <p class="hint full">V5.2 defaults are already active for every Pokémon, even before saving. Adjust only if your campaign changes the table. Universal AC = 11 + PB unless you enter a fixed override.</p>
  <div class="actions"><button class="btn primary" type="submit">Save V5.2 combat rules</button></div>
  </form></section>`;
 }
@@ -218,10 +293,12 @@ function render(){
  if(view==='assign'){root.innerHTML=gmForm();return}
  if(view==='custom'){root.innerHTML=customForm();return}
  if(view==='rules'){root.innerHTML=rulesForm();return}
+ if(view==='request'){root.innerHTML=requestForm();return}
+ if(!collectionReady){root.innerHTML=collectionError?`<section class="panel"><h2>Pokémon collection could not load</h2><p>${esc(collectionError)}</p><p>Firestore has not granted access to the Pokémon collection. The GM must publish the latest <b>firestore.rules</b> from the GM repository in the Firebase Console. Refresh after the rules are live.</p><a class="btn" href="./index.html">Return to Fieldwork</a></section>`:'<section class="panel"><p>Loading Pokémon records…</p></section>';return}
  const mon=pokemon.find(m=>m.id===chosen);
  root.innerHTML=mon?detail(mon):listView();
 }
-function clearSelection(){chosen='';editingId='';draft=null;view='party';render()}
+function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';view='party';render()}
 async function selectMon(id){
  chosen=id;const m=pokemon.find(x=>x.id===id);
  if(m){moveInfo={};await lookupMoves(m.moves||[]);render()}
@@ -278,6 +355,7 @@ async function saveAssign(form){
  const occupying=pokemon.find(m=>m.ownerUid===ownerUid&&m.id!==existing?.id&&Number(m.slot)===slot&&slot>0);
  const batch=writeBatch(store);
  if(occupying)batch.update(doc(store,'santara_pokemon',occupying.id),{slot:existing?.ownerUid===ownerUid?Number(existing.slot)||0:0,updatedAt:serverTimestamp()});
+ if(activeRequestId){batch.update(doc(store,'santara_pokemon_requests',activeRequestId),{status:'approved',resolvedAt:serverTimestamp()});}
  if(existing)batch.set(doc(store,'santara_pokemon',existing.id),item);
  else batch.set(doc(collection(store,'santara_pokemon')),item);
  await batch.commit();
@@ -306,7 +384,11 @@ root.addEventListener('click',async e=>{
   if(action==='party'||action==='storage'){chosen='';view=action;render()}
   if(action==='show')await selectMon(b.dataset.id);
   if(action==='back')clearSelection();
-  if(action==='new'&&GM_SITE){view='assign';draft=null;editingId='';chosen='';render()}
+  if(action==='new'&&GM_SITE){view='assign';draft=null;activeRequestId='';editingId='';chosen='';render()}
+  if(action==='request'&&!GM_SITE){requestDraft=null;view='request';chosen='';render()}
+  if(action==='request-lookup'&&!GM_SITE){const f=document.getElementById('request-form');const species=await findSpecies(f.elements.species.value);requestDraft={...species,level:Number(f.elements.level.value)||5,nickname:f.elements.nickname.value,notes:f.elements.notes.value};say('Species stats loaded. Submit your request to the GM.');render()}
+  if(action==='review'&&GM_SITE){say('Loading requested species…');await reviewRequest(b.dataset.id)}
+  if(action==='reject'&&GM_SITE)await rejectRequest(b.dataset.id)
   if(action==='custom'&&GM_SITE){view='custom';chosen='';render()}
   if(action==='rules'&&GM_SITE){view='rules';chosen='';render()}
   if(action==='lookup'&&GM_SITE){
@@ -351,6 +433,7 @@ root.addEventListener('submit',async e=>{
   if(form.id==='track-form')await saveTracking(form);
   if(form.id==='assign-form'&&GM_SITE)await saveAssign(form);
   if(form.id==='custom-form'&&GM_SITE)await saveCustom(form);
+  if(form.id==='request-form'&&!GM_SITE)await saveRequest(form);
   if(form.id==='rules-form'&&GM_SITE)await saveRules(form);
  }catch(err){fail(err)}finally{busy=false;if(button?.isConnected)button.disabled=false}
 });
