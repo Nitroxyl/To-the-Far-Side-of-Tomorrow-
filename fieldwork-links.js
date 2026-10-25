@@ -312,14 +312,14 @@ async function compressArtwork(file) {
   let dimension=400;
   for(let attempt=0;attempt<12;attempt++){
    const canvas=document.createElement('canvas');
-   canvas.width=dimension;canvas.height=dimension;
+   const ratio=Math.min(1,dimension/Math.max(bitmap.width,bitmap.height));
+   canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
+   canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
    const ctx=canvas.getContext('2d');
    if(!ctx)throw new Error('Your browser does not support image resizing.');
-   ctx.clearRect(0,0,dimension,dimension);
-   // The full source artwork is retained (no forced cropping). The frame can cover it in the UI.
-   const scale=Math.min(dimension/bitmap.width,dimension/bitmap.height);
-   const width=bitmap.width*scale,height=bitmap.height*scale;
-   ctx.drawImage(bitmap,(dimension-width)/2,(dimension-height)/2,width,height);
+   ctx.clearRect(0,0,canvas.width,canvas.height);
+   // Retain the original composition; framed mode crops visually, cutout mode shows all.
+   ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
    const encoded=canvas.toDataURL('image/webp',Math.max(0.34,0.77-attempt*0.045));
    if(!encoded.startsWith('data:image/webp;base64,'))
     throw new Error('WebP is unavailable. Please use an up-to-date browser.');
