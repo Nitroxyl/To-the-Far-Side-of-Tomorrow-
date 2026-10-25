@@ -52,11 +52,13 @@ function paintArtwork(root=document){
   const rawName=img.dataset.fieldworkPokemon||'';
   const key=lookupName(rawName);
   const custom=safeUrl(img.dataset.fieldworkArtwork||'');
+  const upload=validUpload(img.dataset.fieldworkUpload)?img.dataset.fieldworkUpload:'';
   const holder=img.closest('.fw-artwork');
   const hide=()=>{if(!img.isConnected)return;img.hidden=true;holder?.classList.add('fw-empty')};
   if(!key){hide();continue}
   const number=pokemonByName[key];
   const sources=[];
+  if(upload)sources.push(upload);
   if(custom)sources.push(custom);
   if(number){
    sources.push(artworkBase+number+'.png');
@@ -187,8 +189,10 @@ function safeBundle(bundle){
  for(const w of bundle.sightings){
   const matching=wildlife.find(r=>ref(r)===ref(w));
   w.relatedSites=matching?wSites(matching).filter(x=>visibleS.has(x)):[];
-  const custom=safeUrl(matching?.artworkUrl);
-  if(custom&&exposedPokemon(w.pokemon))w.artworkUrl=custom;
+  const reveal=exposedPokemon(w.pokemon);
+  w.artworkUrl=reveal?safeUrl(matching?.artworkUrl):'';
+  w.artworkData=reveal&&validUpload(matching?.artworkData)?matching.artworkData:'';
+  w.artworkStyle=matching?.artworkStyle==='cutout'?'cutout':'framed';
  }
  return bundle;
 }
@@ -224,13 +228,16 @@ function group(type,items){
   const subtitle=type==='sessions'?o.where:(o.stage||o.status||o.region||o.where||'');
   const sourceId=type==='sessions'?String(o.session):id(o);
   return '<button type="button" data-fw-detail="'+esc(types[type])+'" data-fw-id="'+esc(sourceId)+'" class="fw-related-item">'+
-   (type==='wildlife'?artMarkup(o.pokemon,o.artworkUrl):'<span class="fw-refmark">↗</span>')+
+   (type==='wildlife'?artMarkup(o.pokemon,o.artworkUrl,o.artworkData,o.artworkStyle):'<span class="fw-refmark">↗</span>')+
    '<span><strong>'+esc(title)+'</strong><small>'+esc(subtitle)+'</small></span></button>';
  }).join('')+'</div>';
 }
-function artMarkup(name,url){
+function artMarkup(name,url,data='',style=''){
  const imageURL=safeUrl(url);
- return '<span class="fw-artwork fw-empty"><span class="fw-art-fallback">◇</span><img loading="eager" decoding="async" hidden alt="Artwork: '+esc(name||'Pokémon')+'" data-fieldwork-pokemon="'+esc(name||'')+'" data-fieldwork-artwork="'+esc(imageURL)+'"></span>';
+ const uploaded=validUpload(data)?data:'';
+ const showFrame=style==='framed'||(style!=='cutout'&&Boolean(uploaded||imageURL));
+ const className=showFrame?'fw-framed':'fw-cutout';
+ return '<span class="fw-artwork fw-empty '+className+'"><span class="fw-art-fallback">◇</span><img loading="eager" decoding="async" hidden alt="Artwork: '+esc(name||'Pokémon')+'" data-fieldwork-pokemon="'+esc(name||'')+'" data-fieldwork-artwork="'+esc(imageURL)+'" data-fieldwork-upload="'+uploaded+'"></span>';
 }
 function closeModal(){document.querySelector('#fw-info-modal')?.remove()}
 function viewDetail(type,identifier){
@@ -244,7 +251,7 @@ function viewDetail(type,identifier){
  const headline=(type==='sites'?(gm?obj.clue:obj.found):key==='quests'?(gm?obj.hook:obj.known):key==='wildlife'?obj.behavior:type==='sessions'?(gm?obj.what:obj.found):'');
  const note=gm?(obj.gmTruth||obj.notes||''):(obj.notes||'');
  const info='<div class="fw-detail-meta">'+[obj.stage,obj.status,obj.region,obj.where,obj.kind].filter(Boolean).map(v=>'<span>'+esc(v)+'</span>').join('')+'</div>';
- const art=key==='wildlife'?artMarkup(obj.pokemon,obj.artworkUrl):'';
+ const art=key==='wildlife'?artMarkup(obj.pokemon,obj.artworkUrl,obj.artworkData,obj.artworkStyle):'';
  closeModal();
  const overlay=document.createElement('div');overlay.id='fw-info-modal';overlay.className='fw-overlay';
  overlay.innerHTML='<div class="fw-dialog" role="dialog" aria-modal="true" aria-label="Fieldwork details"><div class="fw-dialog-top"><div><div class="fw-eyebrow">SANTARA FIELDWORK / '+esc(key.toUpperCase())+'</div><h2>'+esc(title)+'</h2><small>'+esc(ref(obj)||obj.session)+'</small></div><button type="button" data-fw-close aria-label="Close details">✕</button></div>'+
@@ -266,6 +273,119 @@ document.addEventListener('click',e=>{
  if(edit){closeModal();app.editRecord(edit.dataset.fwEdit,edit.dataset.fwId)}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
-window.SantaraFieldworkExtra={relationEditor,saveRelations,safeBundle,artMarkup,afterRender,viewDetail};
+
+const UPLOAD_LIMIT=55000;
+function validUpload(value){
+ return typeof value==='string' && value.length<=UPLOAD_LIMIT
+  && /^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(value);
+}
+function artworkEditor(type,record){
+ if(type!=='wildlife' && type!=='sightings')return '';
+ const uploaded=validUpload(record.artworkData)?record.artworkData:'';
+ const style=record.artworkStyle==='framed'?'framed':record.artworkStyle==='cutout'?'cutout':uploaded||safeUrl(record.artworkUrl)?'framed':'cutout';
+ return '<section class="fw-upload-editor">'+
+  '<div class="fw-relation-heading">CUSTOM POKÉMON ARTWORK</div>'+
+  '<p>Upload your own PNG, JPG or WebP; the image will be compressed and saved with this record. The existing image URL is still an alternative.</p>'+
+  '<div class="fw-upload-layout"><div id="fw-image-preview">'+artMarkup(exposedPokemon(record.pokemon)?record.pokemon:'Artwork preview',record.artworkUrl,uploaded,style)+'</div>'+
+  '<div class="fw-upload-controls"><label>Upload artwork from device<input id="fw-image-picker" type="file" accept="image/png,image/jpeg,image/webp"></label>'+
+  '<label>Image display<select id="fw-art-style" name="fw-art-style">'+
+  '<option value="framed" '+(style==='framed'?'selected':'')+'>Framed (good for backgrounds)</option>'+
+  '<option value="cutout" '+(style==='cutout'?'selected':'')+'>Cutout (transparent artwork)</option></select></label>'+
+  '<button type="button" data-fw-remove-image class="btn small">Remove uploaded image</button></div></div>'+
+  '<p id="fw-upload-status" class="fw-upload-status" role="status">'+
+  (uploaded?'Uploaded image ready ('+Math.ceil(uploaded.length/1024)+' KB encoded).':'No uploaded image yet. Standard species use automatic art.')+
+  '</p><small>Maximum input 8 MB. Output is reduced to about 40 KB for the shared Pokédex. Saving here is local; the GM must also Publish to share it.</small>'+
+ '</section>';
+}
+function saveArtworkStyle(type,record,form){
+ if(type!=='wildlife' && type!=='sightings')return;
+ const choice=new FormData(form).get('fw-art-style');
+ record.artworkStyle=choice==='cutout'?'cutout':'framed';
+ record.artworkData=validUpload(record.artworkData)?record.artworkData:'';
+}
+async function compressArtwork(file) {
+ if(!file || !['image/png','image/jpeg','image/webp'].includes(file.type))
+  throw new Error('Select a PNG, JPG or WebP file.');
+ if(file.size>8*1024*1024)throw new Error('Image must be smaller than 8 MB.');
+ const bitmap=await createImageBitmap(file);
+ try{
+  let dimension=400;
+  for(let attempt=0;attempt<12;attempt++){
+   const canvas=document.createElement('canvas');
+   const ratio=Math.min(1,dimension/Math.max(bitmap.width,bitmap.height));
+   canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
+   canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+   const ctx=canvas.getContext('2d');
+   if(!ctx)throw new Error('Your browser does not support image resizing.');
+   ctx.clearRect(0,0,canvas.width,canvas.height);
+   // Retain the original composition; framed mode crops visually, cutout mode shows all.
+   ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+   const encoded=canvas.toDataURL('image/webp',Math.max(0.34,0.77-attempt*0.045));
+   if(!encoded.startsWith('data:image/webp;base64,'))
+    throw new Error('WebP is unavailable. Please use an up-to-date browser.');
+   if(validUpload(encoded))return encoded;
+   dimension=Math.max(190,Math.round(dimension*0.88));
+  }
+  throw new Error('Image is too complex to compress. Try a simpler image.');
+ }finally {bitmap.close?.()}
+}
+let uploadSequence=0,uploadBusy=false;
+const uploadState=(message)=>{
+ const label=document.getElementById('fw-upload-status');
+ if(label)label.textContent=message;
+ const saveButton=document.querySelector('#editform button[type=submit]');
+ if(saveButton)saveButton.disabled=uploadBusy;
+};
+document.addEventListener('submit',event=>{
+ if(uploadBusy&&event.target instanceof HTMLFormElement&&event.target.getAttribute('id')==='editform'){
+  event.preventDefault();event.stopImmediatePropagation();uploadState('Finish processing the image before saving.');
+ }
+},true);
+document.addEventListener('change',async event=>{
+ const control=event.target;
+ if(control.id==='fw-art-style'){
+   const node=document.querySelector('#fw-image-preview .fw-artwork');
+   if(node){node.classList.toggle('fw-framed',control.value!=='cutout');node.classList.toggle('fw-cutout',control.value==='cutout')}
+   return;
+ }
+ if(control.id!=='fw-image-picker')return;
+ const file=control.files?.[0];
+ if(!file)return;
+ if(uploadBusy){uploadState('An image is already being processed.');return}
+ const targetRecord=app.getEditingRecord?.();
+ if(!targetRecord)return;
+ const token=++uploadSequence;
+ uploadBusy=true;uploadState('Compressing artwork…');
+ try{
+  const result=await compressArtwork(file);
+  if(token!==uploadSequence || app.getEditingRecord?.()!==targetRecord)return;
+  targetRecord.artworkData=result;
+  const displayStyle=document.getElementById('fw-art-style');
+  if(displayStyle?.value==='cutout'&&!targetRecord.artworkStyle){displayStyle.value='framed'}
+  const preview=document.getElementById('fw-image-preview');
+  if(preview){
+   preview.innerHTML=artMarkup(exposedPokemon(targetRecord.pokemon)?targetRecord.pokemon:'Artwork preview',targetRecord.artworkUrl,result,document.getElementById('fw-art-style')?.value);
+   paintArtwork(preview);
+  }
+  uploadState('Image ready ('+Math.ceil(result.length/1024)+' KB encoded). Click Save changes, then Publish to players.');
+ }catch(error){
+  uploadState('Upload failed: '+(error.message||String(error)));
+ }finally{
+  if(token===uploadSequence){uploadBusy=false;uploadState(document.getElementById('fw-upload-status')?.textContent||'Ready')}
+  control.value='';
+ }
+});
+document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-fw-remove-image]');
+ if(!button)return;
+ const record=app.getEditingRecord?.();
+ if(!record)return;
+ record.artworkData='';
+ const preview=document.getElementById('fw-image-preview');
+ if(preview){preview.innerHTML=artMarkup(exposedPokemon(record.pokemon)?record.pokemon:'Artwork preview',record.artworkUrl,'',document.getElementById('fw-art-style')?.value);paintArtwork(preview)}
+ uploadState('Uploaded image cleared. Click Save changes to keep this change.');
+});
+
+window.SantaraFieldworkExtra={relationEditor,saveRelations,safeBundle,artMarkup,artworkEditor,saveArtworkStyle,afterRender,viewDetail};
 app.refresh();
 })();
