@@ -149,7 +149,7 @@ function connect(){
    },e=>console.warn('Trainer Card names could not load:',e.message));
  }
  stopMoves=onSnapshot(collection(store,'santara_custom_moves'),snapshot=>{
-   customMoves=snapshot.docs.map(d=>({...d.data(),slug:d.id}));for(const m of customMoves){const key=m.name.toLowerCase().trim().replace(/\\s+/g,'-');moveCache.delete(key)}if(chosen){lookupMoves(pokemon.find(p=>p.id===chosen)?.moves||[]).then(render)}else if(view==='party'||view==='storage')render();
+   customMoves=snapshot.docs.map(d=>({...d.data(),slug:d.id}));for(const m of customMoves){const key=m.name.toLowerCase().trim().replace(/\s+/g,'-');moveCache.delete(key)}if(chosen){lookupMoves(pokemon.find(p=>p.id===chosen)?.moves||[]).then(render)}else if(view==='party'||view==='storage')render();
  },e=>console.warn('Custom moves cannot load:',e.message));
  stopAbilities=onSnapshot(collection(store,'santara_custom_abilities'),snapshot=>{
    customAbilities=snapshot.docs.map(d=>({...d.data(),slug:d.id}));if(view==='party'||view==='storage'||chosen)render();
@@ -512,7 +512,14 @@ root.addEventListener('click',async e=>{
     draft.ability=species.abilities?.[0]||'';
     say(`${species.speciesName} imported. Check level, HP, moves and Trainer assignment before saving.`);render();
   }
-  if(action==='edit'&&GM_SITE){editingId=b.dataset.id;draft={...pokemon.find(x=>x.id===editingId)};view='assign';chosen='';render()}
+  if(action==='edit'&&GM_SITE){
+   editingId=b.dataset.id;draft={...pokemon.find(x=>x.id===editingId)};
+   if(draft.source==='official'){
+     try {const official=await fetchOfficial(draft.speciesKey);draft.knownMoves=official.knownMoves;draft.abilities=official.abilities}
+     catch(e){console.warn('Official move suggestions are temporarily unavailable:',e.message)}
+   }
+   view='assign';chosen='';render();
+  }
   if(action==='delete'&&GM_SITE){
     const m=pokemon.find(x=>x.id===b.dataset.id);
     if(m&&confirm('Permanently delete the Pokémon record for '+(m.nickname||m.speciesName)+'?')){await deleteDoc(doc(store,'santara_pokemon',m.id));say('Pokémon record removed.');clearSelection()}
