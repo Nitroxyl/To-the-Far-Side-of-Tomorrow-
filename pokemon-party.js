@@ -47,7 +47,7 @@ function registrationMoves(fd){
  return names;
 }
 function moveOptions(mon){
- const names=[...(mon?.knownMoves||[]),...customMoves.map(m=>m.name)];
+ const names=[...(mon?.knownMoves||[]).map(n=>String(n).replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())),...customMoves.map(m=>m.name)];
  const used=new Set();
  return names.filter(name=>{const key=String(name).toLowerCase();if(!key||used.has(key))return false;used.add(key);return true})
    .sort((a,b)=>String(a).localeCompare(String(b))).slice(0,500);
