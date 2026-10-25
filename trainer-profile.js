@@ -313,6 +313,7 @@ function authHandler(u){
  const refresh=()=>{
   if(gmRole||approvedAccess){enter();return}
   if(stopCard){stopCard();stopCard=null}
+  stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;
   canEnter=false;
   gate('Waiting for account approval','Your existing account needs Trainer approval or an authorized GM role. No new account is required.',
    '<a class="linkbtn" href="./account-access.html">Check account access and copy UID</a>');
