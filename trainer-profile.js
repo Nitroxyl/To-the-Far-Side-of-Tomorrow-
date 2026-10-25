@@ -2,7 +2,8 @@
 // Uploaded photos are resized to small WebP data URLs before storage in Firestore.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 
 const ROOT=document.getElementById('profile-root');
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
@@ -20,7 +21,8 @@ const custom=(p,k)=>correctHex(p[k])?p[k]:themes[p.theme]?.[k==='customPrimary'?
 const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)===String(selected)?'selected':'')+'>'+esc(s)+'</option>').join('');
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
-let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopCard=null,dirty=false,currentPane='identity';
+let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopCard=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity';
+let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
 function gate(title,text,extra=''){
@@ -30,6 +32,42 @@ function errorMessage(e){
  const msg=e?.message||String(e);
  return msg.includes('permission-denied')?'Access denied by Firestore. Check the new Trainer Card rules in Firebase.':msg;
 }
+function partyArt(s) {
+ if(!s)return '';
+ const data=validImage(s.artData,150000)?s.artData:'';
+ const url=/^https:\/\//i.test(s.artUrl||'')?s.artUrl:'';
+ const src=data||url;
+ return src?'<img class="party-pokemon-art" src="'+esc(src)+'" loading="lazy" alt="">':'<span class="ball">◉</span>';
+}
+async function syncMyPublicParty(){
+ if(!owner||!user||profileUid!==user.uid)return;
+ const slots=publicPartySlots(ownPokemon);
+ partySlots=slots;partyReady=true;updatePreview();
+ try{
+  const ref=doc(store,'santara_public_parties',user.uid),existing=await getDoc(ref);
+  if(!existing.exists()||partySignature(existing.data().slots)!==partySignature(slots)){
+   await setDoc(ref,{ownerUid:user.uid,slots,updatedAt:serverTimestamp()});
+  }
+ }catch(err){console.warn('Trainer Card party sync:',err.message)}
+}
+function subscribeParty(){
+ stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;
+ partySlots=Array(6).fill(null);partyReady=false;ownPokemon=[];ownPokemonLoaded=false;
+ stopParty=onSnapshot(doc(store,'santara_public_parties',profileUid),snap=>{
+  // For your own card, the authoritative collection takes precedence.
+  if(owner && ownPokemonLoaded)return;
+  partySlots=snap.exists()&&Array.isArray(snap.data().slots)?snap.data().slots.slice(0,6):Array(6).fill(null);
+  while(partySlots.length<6)partySlots.push(null);
+  partyReady=true;
+  if(owner)updatePreview();else render();
+ },err=>{console.warn('Public party unavailable:',err.message);partyReady=true;if(!owner)render();});
+ if(owner){
+  stopOwnPokemon=onSnapshot(query(collection(store,'santara_pokemon'),where('ownerUid','==',user.uid)),snap=>{
+   ownPokemon=snap.docs.map(d=>d.data());ownPokemonLoaded=true;
+   syncMyPublicParty();
+  },err=>console.warn('My Pokémon unavailable:',err.message));
+ }
+}
 function paintCard(p){
  const primary=correctHex(p.customPrimary)?p.customPrimary:(themes[p.theme]||themes.ocean)[0];
  const secondary=correctHex(p.customSecondary)?p.customSecondary:(themes[p.theme]||themes.ocean)[1];
@@ -37,8 +75,8 @@ function paintCard(p){
  const avatarData=safeImage(p.portraitData,150000);
  const bannerData=safeImage(p.bannerData,260000);
  const badge=Math.max(0,Math.min(8,Number(p.badgeCount)||0));
- const team=Array.isArray(p.team)?p.team.slice(0,6):[];
- while(team.length<6)team.push('');
+ const team=partySlots.slice(0,6);
+ while(team.length<6)team.push(null);
  return '<article class="passport pattern-'+pattern+'" style="--c1:'+primary+';--c2:'+secondary+';--c3:#c1ffe9">'+
   (bannerData?'<img class="cover" alt="" src="'+bannerData+'">':'')+
   '<div class="shade"></div><div class="passport-inner">'+
@@ -49,7 +87,7 @@ function paintCard(p){
     '<div class="portrait emblem-portrait" role="img" aria-label="Trainer emblem">'+(emblems.includes(p.avatar)?p.avatar:'🎒')+'</div>')+
   '<div class="identity-details"><h2>'+esc(p.trainerName||'New Trainer')+'</h2><div class="subtitle">'+esc(p.trainerClass||'Pokémon Trainer')+'</div><div class="smallcaps" style="margin-top:8px">⌖ '+esc(p.hometown||'Santara')+'</div></div></div>'+
   '<div class="meta"><span class="chip">✦ '+esc(p.favoriteType||'Normal')+' type</span><span class="chip">◆ '+badge+' badges</span><span class="chip">Partner: '+esc(p.partnerPokemon||'—')+'</span></div>'+
-  '<div class="section-title">REGISTERED PARTY</div><div class="squad">'+team.map((n,i)=>'<div class="squad-unit"><span class="ball">◉</span>'+esc(n||'Slot '+(i+1))+'</div>').join('')+'</div>'+
+  '<div class="section-title">REGISTERED PARTY</div><div class="squad">'+team.map((n,i)=>'<div class="squad-unit">'+(n?partyArt(n)+'<span class="squad-name">'+esc(n.name)+'</span><span class="squad-level">Lv. '+Number(n.level||1)+'</span>':'<span class="squad-empty">Slot '+(i+1)+' · Empty</span>')+'</div>').join('')+'</div>'+
   '<div class="card-motto">“'+esc(p.quote||'Every journey begins somewhere.')+'”</div>'+
   '<div class="id-bottom"><span>TRAINER PASSPORT / FIELD RESEARCH</span><span>✦ AUTHORIZED</span></div>'+
   '</div></article>';
@@ -60,7 +98,7 @@ function htmlEditor(){
  const team=Array.isArray(p.team)?p.team.slice(0,6):[];
  while(team.length<6)team.push('');
  return '<div class="studio"><section class="preview-wrap"><div class="preview-label"><h2>Live card preview</h2><span>Updates as you customize</span></div><div id="passport-preview">'+paintCard(p)+'</div>'+
- '<p class="preview-helper">Your portrait, colours, background and team are visible to other approved Trainers once saved. Images are compressed before uploading.</p>'+
+ '<p class="preview-helper">Your six party slots now sync from My Pokémon automatically, including Pokémon assigned or moved by your GM. Your colours, portrait and motto are saved separately.</p>'+
  '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
  '<section class="panel"><div class="editor-header"><h2>Customize your ID</h2><span class="eyebrow">PERSONAL EDITION</span></div>'+
  '<div class="section-tabs" role="tablist" aria-label="Trainer card editor sections">'+
@@ -90,9 +128,7 @@ function htmlEditor(){
  '<label class="field">Choose background<input type="file" name="bannerUpload" accept="image/jpeg,image/png,image/webp"></label>'+
  '<button class="small-btn" type="button" data-remove-image="bannerData">Remove background</button></div>'+
  '</section>'+
- '<section class="tabpane" data-pane-body="team" '+(currentPane==='team'?'':'hidden')+'><p class="hint" style="margin-bottom:16px">Show off six Pokémon. These names are cosmetic and do not change your battle party.</p><div class="form-group">'+
- team.map((n,i)=>'<label class="field">Team slot '+(i+1)+'<input maxlength="32" name="team'+i+'" value="'+esc(n)+'" placeholder="Pokémon name"></label>').join('')+
- '</div></section>'+
+ '<section class="tabpane" data-pane-body="team" '+(currentPane==='team'?'':'hidden')+'><h3>My Pokémon — live party</h3><p class="hint">These six slots are read-only here. Manage your party positions, nicknames and Pokémon in My Pokémon; the Trainer Card updates automatically.</p><a class="linkbtn" href="./pokemon-party.html">Open My Pokémon</a></section>'+
  '<div class="savebar"><button class="save" type="submit" '+(working?'disabled':'')+'>'+(working?'Saving…':'Save Trainer Card')+'</button><span id="form-status" class="form-msg" role="status">'+(dirty?'Unsaved changes':'Saved data loads automatically')+'</span></div>'+
  '</form></section></div>';
 }
@@ -190,7 +226,7 @@ async function saveCard(e){
   if(!key.startsWith('team'))collectWithoutRedraw(form,key);
  }
  const raw=new FormData(form);
- model.team=Array.from({length:6},(_,i)=>String(raw.get('team'+i)||'').trim().slice(0,32));
+ model.team=partySlots.map(slot=>String(slot?.name||'').slice(0,32));
  if(!model.trainerName.trim()){feedback('Enter a Trainer name.');return}
  const entry={
   ownerUid:user.uid,
@@ -229,6 +265,7 @@ function collectWithoutRedraw(form,key){
 }
 function subscribe(){
  if(stopCard)stopCard();
+ subscribeParty();
  owner=profileUid===user.uid;
  dirty=false;
  gate(owner?'Preparing your Trainer Card':'Loading Trainer record','Fetching the saved profile.');
@@ -243,6 +280,7 @@ function enter(){
  if(!stopCard)subscribe();
 }
 function authHandler(u){
+ stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];ownPokemonLoaded=false;partyReady=false;
  if(stopCard){stopCard();stopCard=null}
  if(stopAccess){stopAccess();stopAccess=null}
  canEnter=false;user=u;dirty=false;original=null;
