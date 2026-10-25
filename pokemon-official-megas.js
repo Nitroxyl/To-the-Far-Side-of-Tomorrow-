@@ -4,9 +4,11 @@
 import {fromPokeApi} from './pokemon-math.js';
 
 export function megaDisplayName(id) {
- const parts=String(id||'').toLowerCase().split('-mega-');
- const base=parts[0]||'';
- const variant=(parts[1]||'').split('-').filter(Boolean);
+ const raw=String(id||'').toLowerCase();
+ const pos=raw.indexOf('-mega');
+ const base=pos>=0?raw.slice(0,pos):raw;
+ const suffix=pos>=0?raw.slice(pos+5).replace(/^-/, ''):'';
+ const variant=suffix.split('-').filter(Boolean);
  const title=s=>s.split('-').map(x=>x?x[0].toUpperCase()+x.slice(1):'').join(' ');
  return 'Mega '+title(base)+(variant.length?' '+variant.map(title).join(' '):'');
 }
