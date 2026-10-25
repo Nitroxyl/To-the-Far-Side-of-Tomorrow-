@@ -117,6 +117,101 @@ async function saveCatalog(form,isMove){
  catalogReturn();
 }
 
+function formSlug(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70);}
+function currentMega(mon){return megaForms.find(f=>f.slug===mon?.megaForm?.slug)||mon?.megaForm||null;}
+function gmMechanicsUI(){
+ if(!GM_SITE)return '';
+ const g=unlocks(ownerFilter);
+ return unlockUI(g,trainerLabel(ownerFilter),esc)+libraryUI(megaForms,esc);
+}
+function megaChoiceFor(mon){
+ return megaForms.filter(f=>String(f.baseSpeciesKey).toLowerCase()===String(mon?.speciesKey||'').toLowerCase());
+}
+async function saveUnlocks(form){
+ if(!GM_SITE||!ownerFilter||!trainers.some(t=>t.uid===ownerFilter))throw Error('Select an approved Trainer.');
+ const f=new FormData(form);
+ const values={tera:f.has('tera'),mega:f.has('mega'),zMove:f.has('zMove'),dynamax:f.has('dynamax'),updatedAt:serverTimestamp()};
+ await setDoc(doc(store,'santara_trainer_gimmicks',ownerFilter),values);
+ say('Updated unlocks for '+trainerLabel(ownerFilter)+'.');
+}
+async function saveMegaForm(form){
+ if(!GM_SITE)throw Error('Only the GM can register Mega forms.');
+ const f=new FormData(form),name=cap(f.get('name'),85);
+ const key=cap(f.get('baseSpeciesKey'),110).toLowerCase().replace(/\s+/g,'-');
+ const slug=formSlug(name);
+ if(slug.length<2||!/^(custom:[a-z0-9-]+|[a-z0-9-]+)$/.test(key))throw Error('Check the base species key and Mega form name.');
+ if(editingMega?.slug&&editingMega.slug!==slug)throw Error('To rename this form, register a new entry rather than overwriting its ID.');
+ const baseStats=Object.fromEntries(statKeys.map(k=>[k,Number(f.get('stat_'+k))]));
+ if(!validStats(baseStats))throw Error('Each Mega base stat must be between 1 and 255.');
+ const types=[String(f.get('type1')),String(f.get('type2'))].filter(Boolean);
+ if(types.some(t=>!TYPES.includes(t))||new Set(types).size!==types.length)throw Error('Invalid Mega typing.');
+ const ability=cap(f.get('ability'),48);if(!ability)throw Error('Provide a Mega ability.');
+ const spriteUrl=cap(f.get('spriteUrl'),600);
+ if(spriteUrl&&!safeUrl(spriteUrl))throw Error('Use an HTTPS artwork URL.');
+ const upload=f.get('upload');
+ const spriteData=upload?.size?await imgToWebp(upload):(editingMega?.spriteData||'');
+ await setDoc(doc(store,'santara_mega_forms',slug),{slug,name,baseSpeciesKey:key,baseStats,types,ability,spriteUrl,spriteData,
+  source:megaImported?'official':'custom',updatedAt:serverTimestamp()});
+ say(name+' saved. Assign this form to a compatible regular Pokémon from the GM editor.');
+ editingMega=null;megaImported=false;clearSelection();
+}
+async function importMega(form){
+ const f=new FormData(form),name=cap(f.get('officialKey'),70);
+ if(!name)throw Error('Enter an official Mega identifier, e.g. charizard-mega-x.');
+ const p=await fetchOfficial(name);
+ if(!name.includes('-mega'))throw Error('That does not look like an official Mega Evolution.');
+ const baseKey=cap(f.get('baseSpeciesKey'),110).trim().toLowerCase()||name.split('-mega')[0];
+ form.elements.baseSpeciesKey.value=baseKey;
+ form.elements.name.value=p.speciesName;
+ form.elements.type1.value=p.types[0]||'normal';
+ form.elements.type2.value=p.types[1]||'';
+ for(const k of statKeys)form.elements['stat_'+k].value=p.baseStats[k];
+ form.elements.ability.value=p.abilities?.[0]||'';
+ form.elements.spriteUrl.value=p.spriteUrl||'';
+ megaImported=true;
+ say('Official Mega imported. Review its stats and ability, then save.');
+}
+function displayPokemon(m){
+ return effectivePokemon(m,unlocks(m.ownerUid));
+}
+async function setTeraType(mon,type){
+ if(!unlocks(mon.ownerUid).tera)throw Error('Your GM has not unlocked Terastallization.');
+ if(!TYPES.includes(type))throw Error('Invalid Tera type.');
+ await updateDoc(doc(store,'santara_pokemon',mon.id),{teraType:type,updatedAt:serverTimestamp()});
+ say('Tera type set to '+type+'.');
+}
+async function gimmickAction(code,m){
+ const enabled=unlocks(m.ownerUid),patch={updatedAt:serverTimestamp()};
+ if(code==='tera'){
+  if(!enabled.tera)throw Error('Terastallization is locked.');
+  patch.teraType=TYPES.includes(m.teraType)?m.teraType:(m.types?.[0]||'normal');
+  patch.teraActive=!m.teraActive;
+  if(patch.teraActive){patch.megaActive=false;patch.dynamaxTurns=0;}
+ }else if(code==='mega'){
+  if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
+  patch.megaActive=!m.megaActive;
+  if(patch.megaActive){patch.teraActive=false;patch.dynamaxTurns=0;}
+ }else if(code==='z'){
+  if(!enabled.zMove)throw Error('Z-Moves are locked.');
+  patch.zUsed=!m.zUsed;
+ }else if(code==='dmax'){
+  if(!enabled.dynamax)throw Error('Dynamax is locked.');
+  if(Number(m.dynamaxTurns)>0)patch.dynamaxTurns=0;
+  else {
+   if(m.dynamaxUsed)throw Error('Dynamax already used. Reset between battles.');
+   patch.dynamaxTurns=3;patch.dynamaxUsed=true;
+   patch.megaActive=false;patch.teraActive=false;
+  }
+ }else if(code==='next'){
+  if(!enabled.dynamax||!m.dynamaxTurns)throw Error('Not currently Dynamaxed.');
+  patch.dynamaxTurns=Math.max(0,Number(m.dynamaxTurns)-1);
+ }else if(code==='reset'){
+  if(!enabled.dynamax)throw Error('Dynamax is locked.');
+  patch.dynamaxTurns=0;patch.dynamaxUsed=false;
+ }else throw Error('Unknown mechanic.');
+ await updateDoc(doc(store,'santara_pokemon',m.id),patch);
+}
+
 function gate(message){
  root.innerHTML=`<section class="panel"><h2>${esc(message)}</h2><p>Use the same Firebase account as the Santara Fieldwork website. New players must verify their email and be approved by the GM.</p>
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
