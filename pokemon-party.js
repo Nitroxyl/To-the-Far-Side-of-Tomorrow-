@@ -7,7 +7,7 @@ const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
 const root=document.getElementById('party-root');
 const feedback=document.getElementById('feedback');
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','&quot;','\'':'&#39;'}[c]||''));
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'" :'&#39;'}[c]||''));
 const safeUrl=v=>/^https:\/\//i.test(String(v||''))?String(v):'';
 const safeImageData=v=>typeof v==='string'&&v.length<=150000&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(v)?v:'';
 const cap=(s,n)=>String(s??'').trim().slice(0,n);
