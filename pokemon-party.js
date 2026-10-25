@@ -534,6 +534,15 @@ root.addEventListener('click',async e=>{
  }catch(err){fail(err)}finally{busy=false}
 });
 root.addEventListener('change',e=>{
+ if(e.target.name==='name'&&(view==='custom-move'||view==='custom-ability')){
+  const record=(view==='custom-move'?customMoves:customAbilities).find(x=>x.name.toLowerCase()===e.target.value.trim().toLowerCase());
+  const form=e.target.closest('form');
+  if(record&&form){
+   for(const key of ['description','type','category','power','accuracy','dice']){
+    const field=form.elements[key];if(field)field.value=record[key]??'';
+   }
+  }
+ }
  if(e.target.id==='trainer-filter'){ownerFilter=e.target.value;chosen='';view='party';render()}
  if(e.target.name==='level'&&view==='assign'&&draft?.baseStats){
   const level=Number(e.target.value),form=document.getElementById('assign-form');
