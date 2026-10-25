@@ -45,7 +45,7 @@ function showLogin(){
     '<form id="trainer-auth-form" style="display:grid;gap:11px"><label>Email<input required type="email" name="email" autocomplete="email" placeholder="trainer@example.com" style="display:block;width:100%;background:#1d3442;border:1px solid #527582;border-radius:8px;color:white;padding:11px"></label>'+
     '<label>Password<input required type="password" name="password" minlength="6" autocomplete="current-password" style="display:block;width:100%;background:#1d3442;border:1px solid #527582;border-radius:8px;color:white;padding:11px"></label>'+
     '<div>'+btn('Sign in','login')+btn('Create account','register')+'</div></form>'+
-    '<div>'+btn('Continue with Google','google')+btn('Reset password','reset')+'</div><p id="access-message" role="status" style="color:#e7c58b"></p>');
+    '<div>'+btn('Continue with Google','google')+btn('Reset password','reset')+'</div><p><a href="./account-access.html" style="color:#7be0c9">Existing account / GM access</a></p><p id="access-message" role="status" style="color:#e7c58b"></p>');
   status('Sign in to unlock fieldwork');
 }
 function showUnverified(){
