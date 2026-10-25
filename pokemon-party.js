@@ -17,7 +17,7 @@ const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep'
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
 let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null;
-let pokemon=[],trainers=[],customs=[],view='party',chosen='',ownerFilter='',editingId='',draft=null,moveInfo={},busy=false;
+let pokemon=[],trainers=[],customs=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -32,8 +32,8 @@ function gate(message){
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
- [stopAccess,stopPokemon,stopApprovals,stopCustoms].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=null;pokemon=[];trainers=[];customs=[];allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=null;pokemon=[];trainers=[];customs=[];battleRules=null;allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -43,6 +43,7 @@ function guard(){
  render();
 }
 function connect(){
+ stopRules=onSnapshot(doc(store,'santara_battle_rules','v5_2'),snapshot=>{battleRules=snapshot.exists()?snapshot.data():null;render()},e=>say('Combat settings: '+e.message));
  if(stopPokemon)stopPokemon();
  const col=collection(store,'santara_pokemon');
  stopPokemon=onSnapshot(GM_SITE?col:query(col,where('ownerUid','==',user.uid)),snapshot=>{
@@ -120,12 +121,14 @@ function listView(){
  ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section>`:''}`;
 }
 function detail(m){
- const s=m.baseStats||{},d=combatSummary(m);
+ const s=m.baseStats||{},d=combatSummary(m,battleRules);
+ const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
  <div class="detail-head">${artwork(m)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span></h2><p>${esc(m.speciesName)} · ${esc((m.types||[]).join(' / '))} · ${esc(m.ability||'No ability')}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p></div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet</h3><div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
- <p class="hint">V5.2 20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed order uses base Speed ${d.effectiveSpeed} before battle modifiers.</p>
- <p class="flag">V5.2 universal AC and its exact offense/defense multiplier table are pending entry. This sheet does not use the obsolete V4 AC formula.</p>
+ <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
+ <div class="stats-grid"><div class="stat"><b>${d.universalAC??'—'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
+ <p class="flag">${battleRules?'Uses GM-entered V5.2 rules. Unfilled tiers show Pending.':'GM has not configured the exact V5.2 modifiers. No obsolete V4 AC is used.'}</p>
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
  const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div></div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
@@ -156,7 +159,7 @@ function gmForm(){
  <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label>
  <label class="field">Nickname<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
  <label class="field">Ability<input name="ability" list="abilities" maxlength="48" value="${esc(d.ability||d.abilities?.[0]||'')}"><datalist id="abilities">${(d.abilities||[]).map(a=>`<option value="${esc(a)}">`).join('')}</datalist></label>
- <label class="field">Maximum HP<input name="maxHp" type="number" min="1" max="3000" required value="${d.maxHp||defaultHp}"></label>
+ <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp||defaultHp}"></label>
  <label class="field">Current HP<input name="currentHp" type="number" min="0" max="3000" required value="${d.currentHp??d.maxHp??defaultHp}"></label>
  <label class="field">Party slot<select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,d.slot??0)).join('')}</select></label>
  <label class="field">Held item<input name="heldItem" maxlength="80" value="${esc(d.heldItem||'')}"></label>
@@ -166,6 +169,34 @@ function gmForm(){
  <p class="hint full">Official six base stats, types, abilities and artwork are imported automatically. Default HP is calculated from our older V4 baseline until the finalized V5.2 HP rule is entered; you can override HP above. The obsolete V4 AC is NOT used.</p>
  <div class="actions"><button class="btn primary" type="submit" ${draft||existing?'':'disabled'}>${existing?'Save Pokémon':'Assign to Trainer'}</button></div>
  </form></section>`;
+}
+function rulesForm(){
+ const r=battleRules||{};
+ return `<section class="panel"><div class="toolbar"><h2>V5.2 combat configuration</h2><button class="btn" data-act="back">← Cancel</button></div>
+ <p>Enter the finalized V5.2 values, rather than the superseded V4 formulas. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk reads the 200–219 value (the 11th entry).</p>
+ <form id="rules-form" class="form-grid">
+ <label class="field">Universal AC<input name="universalAc" type="number" min="1" max="50" placeholder="Enter actual V5.2 value" value="${r.universalAc??''}"></label>
+ <label class="field full">Offense multipliers (comma-separated)<textarea name="offenseBands" placeholder="20-point offense tier multipliers">${(r.offenseBands||[]).join(', ')}</textarea></label>
+ <label class="field full">Defense multipliers (comma-separated)<textarea name="defenseBands" placeholder="20-point defense tier multipliers">${(r.defenseBands||[]).join(', ')}</textarea></label>
+ <p class="hint full">Leave a field blank if its exact values have not been finalized. Unconfigured modifiers will display Pending, and players still see the original species base stats.</p>
+ <div class="actions"><button class="btn primary" type="submit">Save V5.2 combat rules</button></div>
+ </form></section>`;
+}
+async function saveRules(form){
+ const f=new FormData(form),raw=String(f.get('universalAc')||'').trim();
+ const universalAc=raw?Number(raw):null;
+ const parse=k=>{
+  const input=String(f.get(k)||'').trim();
+  if(!input)return [];
+  const numbers=input.split(',').map(x=>Number(x.trim()));
+  if(numbers.length>20||numbers.some(x=>!Number.isFinite(x)||x<=0||x>10))throw Error(k+' needs at most 20 positive numeric multipliers (0–10).');
+  return numbers;
+ };
+ if(universalAc!==null&&(!Number.isInteger(universalAc)||universalAc<1||universalAc>50))throw Error('Universal AC must be an integer from 1 to 50.');
+ await setDoc(doc(store,'santara_battle_rules','v5_2'),{
+  universalAc,offenseBands:parse('offenseBands'),defenseBands:parse('defenseBands'),updatedAt:serverTimestamp()
+ });
+ say('V5.2 combat tables saved for all approved Trainers.');clearSelection();
 }
 function customForm(){
  return `<section class="panel"><div class="toolbar"><h2>Register a Santara species or custom form</h2><button class="btn" data-act="back">← Cancel</button></div>
@@ -186,6 +217,7 @@ function render(){
  chip.textContent=GM_SITE?'GM authenticated':user.email||'Trainer';
  if(view==='assign'){root.innerHTML=gmForm();return}
  if(view==='custom'){root.innerHTML=customForm();return}
+ if(view==='rules'){root.innerHTML=rulesForm();return}
  const mon=pokemon.find(m=>m.id===chosen);
  root.innerHTML=mon?detail(mon):listView();
 }
@@ -276,12 +308,14 @@ root.addEventListener('click',async e=>{
   if(action==='back')clearSelection();
   if(action==='new'&&GM_SITE){view='assign';draft=null;editingId='';chosen='';render()}
   if(action==='custom'&&GM_SITE){view='custom';chosen='';render()}
+  if(action==='rules'&&GM_SITE){view='rules';chosen='';render()}
   if(action==='lookup'&&GM_SITE){
     busy=true;b.disabled=true;say('Fetching species stats…');
     const input=document.getElementById('species-query');
     const species=await findSpecies(input.value);
     draft={...(draft||{}),...species};
-    if(!draft.level)draft.level=5;
+    const enteredLevel=Number(document.querySelector('#assign-form [name="level"]')?.value);
+    draft.level=Number.isInteger(enteredLevel)&&enteredLevel>=1&&enteredLevel<=100?enteredLevel:5;
     draft.maxHp=maxHpV4Baseline(species.baseStats,draft.level);
     draft.currentHp=draft.maxHp;
     draft.ability=species.abilities?.[0]||'';
@@ -296,7 +330,18 @@ root.addEventListener('click',async e=>{
   if(action==='google'){await signInWithPopup(auth,new GoogleAuthProvider())}
  }catch(err){fail(err)}finally{busy=false}
 });
-root.addEventListener('change',e=>{if(e.target.id==='trainer-filter'){ownerFilter=e.target.value;chosen='';view='party';render()}});
+root.addEventListener('change',e=>{
+ if(e.target.id==='trainer-filter'){ownerFilter=e.target.value;chosen='';view='party';render()}
+ if(e.target.name==='level'&&view==='assign'&&draft?.baseStats){
+  const level=Number(e.target.value),form=document.getElementById('assign-form');
+  if(Number.isInteger(level)&&level>=1&&level<=100&&form){
+   const max=form.elements.maxHp,cur=form.elements.currentHp,old=Number(max.value);
+   const newMax=maxHpV4Baseline(draft.baseStats,level);
+   if(old===Number(max.dataset.generated)){if(Number(cur.value)===old)cur.value=newMax;max.value=newMax}
+   max.dataset.generated=String(newMax);draft.level=level;
+  }
+ }
+});
 root.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;
  const form=e.target,button=form.querySelector('button[type=submit]');
@@ -306,6 +351,7 @@ root.addEventListener('submit',async e=>{
   if(form.id==='track-form')await saveTracking(form);
   if(form.id==='assign-form'&&GM_SITE)await saveAssign(form);
   if(form.id==='custom-form'&&GM_SITE)await saveCustom(form);
+  if(form.id==='rules-form'&&GM_SITE)await saveRules(form);
  }catch(err){fail(err)}finally{busy=false;if(button?.isConnected)button.disabled=false}
 });
 
