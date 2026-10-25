@@ -16,8 +16,8 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null;
-let pokemon=[],trainers=[],customs=[],requests=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',collectionReady=false,collectionError='',moveInfo={},busy=false;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null;
+let pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -27,13 +27,98 @@ document.getElementById('passport-link').href=GM_SITE?'./index.html?tab=approval
 
 function say(s){feedback.textContent=s||''}
 function fail(e){say(e?.message||String(e))}
+const TRAINER_FALLBACK='Trainer';
+function trainerLabel(uid){
+ const card=trainerCards.find(c=>c.uid===uid);
+ const name=cap(card?.trainerName,32);
+ if(name && name.toLowerCase()!=='new trainer')return name;
+ return `${TRAINER_FALLBACK} #${String(uid).slice(0,6)}`;
+}
+function customMoveByName(name){
+ return customMoves.find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
+}
+function customAbilityByName(name){
+ return customAbilities.find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
+}
+function registrationMoves(fd){
+ const names=Array.from({length:4},(_,i)=>cap(fd.get('move'+(i+1)),48)).filter(Boolean);
+ if(names.some(m=>m.includes(',')))throw Error('Enter only one move in each slot.');
+ if(new Set(names.map(m=>m.toLowerCase())).size!==names.length)throw Error('A Pokémon cannot know the same move twice.');
+ return names;
+}
+function moveOptions(mon){
+ const names=[...(mon?.knownMoves||[]),...customMoves.map(m=>m.name)];
+ const used=new Set();
+ return names.filter(name=>{const key=String(name).toLowerCase();if(!key||used.has(key))return false;used.add(key);return true})
+   .sort((a,b)=>String(a).localeCompare(String(b))).slice(0,500);
+}
+function copyAssignmentDraft(){
+ const form=document.getElementById('assign-form');if(!form)return;
+ const fd=new FormData(form);
+ const current=draft||pokemon.find(m=>m.id===editingId)||{};
+ draft={...current,speciesName:cap(fd.get('species'),85),
+  ownerUid:String(fd.get('ownerUid')||ownerFilter),
+  level:Number(fd.get('level'))||5,nickname:cap(fd.get('nickname'),32),
+  ability:cap(fd.get('ability'),48),maxHp:Number(fd.get('maxHp'))||current.maxHp||0,
+  currentHp:Number(fd.get('currentHp')),slot:Number(fd.get('slot'))||0,
+  heldItem:cap(fd.get('heldItem'),80),moves:Array.from({length:4},(_,i)=>cap(fd.get('move'+(i+1)),48)).filter(Boolean),
+  origin:cap(fd.get('origin'),150),notes:cap(fd.get('notes'),1000)};
+}
+function catalogReturn(){
+ if(returnToAssign){
+  returnToAssign=false;view='assign';render();
+ }else clearSelection();
+}
+function catalogForm(kind){
+ const isMove=kind==='move';
+ const options=isMove?customMoves:customAbilities;
+ return `<section class="panel">
+ <div class="toolbar"><h2>${isMove?'Define custom move':'Define custom ability'}</h2><button class="btn" type="button" data-act="catalog-back">← Back</button></div>
+ <p>Definitions are reusable across Santara Pokémon and saved to Firestore. Existing Pokémon can select them without changing their base stats.</p>
+ <form id="${isMove?'custom-move-form':'custom-ability-form'}" class="form-grid">
+ <label class="field full">Name<input name="name" maxlength="48" required placeholder="${isMove?'e.g. Primordial Crush':'e.g. Apex Predator'}" list="registered-names"></label>
+ <datalist id="registered-names">${options.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist>
+ ${isMove?`<label class="field">Type<select name="type">${['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'].map(t=>option(t,t[0].toUpperCase()+t.slice(1),'dragon')).join('')}</select></label>
+ <label class="field">Category<select name="category">${['Physical','Special','Status'].map(t=>option(t,t,'Physical')).join('')}</select></label>
+ <label class="field">Base Power (optional)<input name="power" type="number" min="0" max="300" placeholder="e.g. 90"></label>
+ <label class="field">Accuracy % (optional)<input name="accuracy" type="number" min="1" max="100" placeholder="Leave empty if it cannot miss"></label>
+ <label class="field full">D&D dice or damage notation (optional)<input name="dice" maxlength="120" placeholder="e.g. 4d8, or scaling by level"></label>`:''}
+ <label class="field full">${isMove?'Move effects, targeting and range':'Ability effect'}<textarea name="description" minlength="1" maxlength="1000" required placeholder="Describe how the ${isMove?'move':'ability'} works in our tabletop rules."></textarea></label>
+ <p class="hint full">Entering an existing custom name replaces that definition; it will also update the description shown on Pokémon sheets using it.</p>
+ <div class="actions"><button class="btn primary" type="submit">Save ${isMove?'custom move':'custom ability'}</button></div>
+ </form></section>`;
+}
+async function saveCatalog(form,isMove){
+ const fd=new FormData(form),name=cap(fd.get('name'),48),description=cap(fd.get('description'),1000);
+ const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+ if(!/^[a-z0-9-]{2,70}$/.test(slug))throw Error('Choose a name with at least two letters or numbers.');
+ if(!description)throw Error('Describe the effect before saving.');
+ const coll=isMove?'santara_custom_moves':'santara_custom_abilities';
+ const existing=(isMove?customMoves:customAbilities).find(x=>x.slug===slug);
+ if(existing&&!confirm('Replace the existing definition of '+existing.name+'?'))return;
+ let record={slug,name,description,updatedAt:serverTimestamp()};
+ if(isMove){
+  const type=String(fd.get('type')||''),category=String(fd.get('category')||'');
+  const powerRaw=String(fd.get('power')||'').trim(),accuracyRaw=String(fd.get('accuracy')||'').trim();
+  const power=powerRaw===''?null:Number(powerRaw),accuracy=accuracyRaw===''?null:Number(accuracyRaw);
+  if(!['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'].includes(type))throw Error('Choose a Pokémon move type.');
+  if(!['Physical','Special','Status'].includes(category))throw Error('Choose a move category.');
+  if(power!==null&&(!Number.isInteger(power)||power<0||power>300))throw Error('Base Power must be between 0 and 300.');
+  if(accuracy!==null&&(!Number.isInteger(accuracy)||accuracy<1||accuracy>100))throw Error('Accuracy must be between 1 and 100.');
+  record={...record,type,category,power,accuracy,dice:cap(fd.get('dice'),120)};
+ }
+ await setDoc(doc(store,coll,slug),record);
+ say(name+' saved to your custom '+(isMove?'moves':'abilities')+' catalogue.');
+ catalogReturn();
+}
+
 function gate(message){
  root.innerHTML=`<section class="panel"><h2>${esc(message)}</h2><p>Use the same Firebase account as the Santara Fieldwork website. New players must verify their email and be approved by the GM.</p>
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
 function stop(){
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=null;pokemon=[];trainers=[];customs=[];requests=[];battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -59,7 +144,16 @@ function connect(){
      if(!ownerFilter&&trainers.length)ownerFilter=trainers[0].uid;
      render();
    },fail);
+   stopCards=onSnapshot(collection(store,'santara_trainer_cards'),snapshot=>{
+     trainerCards=snapshot.docs.map(d=>({uid:d.id,...d.data()}));if(view==='party'||view==='storage')render();
+   },e=>console.warn('Trainer Card names could not load:',e.message));
  }
+ stopMoves=onSnapshot(collection(store,'santara_custom_moves'),snapshot=>{
+   customMoves=snapshot.docs.map(d=>({...d.data(),slug:d.id}));for(const m of customMoves){const key=m.name.toLowerCase().trim().replace(/\\s+/g,'-');moveCache.delete(key)}if(chosen){lookupMoves(pokemon.find(p=>p.id===chosen)?.moves||[]).then(render)}else if(view==='party'||view==='storage')render();
+ },e=>console.warn('Custom moves cannot load:',e.message));
+ stopAbilities=onSnapshot(collection(store,'santara_custom_abilities'),snapshot=>{
+   customAbilities=snapshot.docs.map(d=>({...d.data(),slug:d.id}));if(view==='party'||view==='storage'||chosen)render();
+ },e=>console.warn('Custom abilities cannot load:',e.message));
  stopCustoms=onSnapshot(collection(store,'santara_species_overrides'),snapshot=>{
      customs=snapshot.docs.map(d=>({key:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
      render();
@@ -73,7 +167,7 @@ async function fetchOfficial(name){
 }
 function customFrom(x){
  if(!x||!validStats(x.baseStats))throw Error('Custom species has invalid stats.');
- return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:[],spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
+ return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:customMoves.map(m=>m.name),spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
 }
 async function findSpecies(value){
  const q=cap(value,90);
@@ -84,6 +178,11 @@ async function lookupMoves(names){
  const list=names.filter(Boolean).slice(0,4);
  await Promise.all(list.map(async name=>{
    const key=name.toLowerCase().trim().replace(/\s+/g,'-');
+   const special=customMoveByName(name);
+   if(special){
+     moveCache.set(key,{type:special.type,category:special.category?.toLowerCase(),power:special.power,accuracy:special.accuracy,description:special.description,dice:special.dice,custom:true});
+     return;
+   }
    if(moveCache.has(key))return;
    try {
      const r=await fetch('https://pokeapi.co/api/v2/move/'+encodeURIComponent(key));
@@ -129,7 +228,7 @@ function requestsSection(){
   return `<section class="panel"><div class="toolbar"><h3>Pokémon requests <span class="chip">${pending.length} pending</span></h3></div>
   <p>Review Trainer submissions before adding Pokémon to their collections.</p>
   ${pending.length?pending.map(r=>`<article class="entry"><b>${esc(r.speciesName)}</b> · requested Lv. ${r.level}
-  <p class="hint">${esc(trainers.find(t=>t.uid===r.ownerUid)?.email||r.ownerUid)}${r.nickname?' · '+esc(r.nickname):''}${r.notes?' — '+esc(r.notes):''}</p>
+  <p class="hint">${esc(trainerLabel(r.ownerUid))}${r.nickname?' · '+esc(r.nickname):''}${r.notes?' — '+esc(r.notes):''}</p>
   <div class="actions"><button class="btn primary small" data-act="review" data-id="${esc(r.id)}">Review & assign</button>
   <button class="btn small danger" data-act="reject" data-id="${esc(r.id)}">Decline</button></div></article>`).join(''):'<p class="hint">No pending Pokémon requests.</p>'}</section>`;
  }
@@ -184,7 +283,7 @@ function roster(){
  const storage=mine.filter(m=>!Number(m.slot)||Number(m.slot)>6);
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="toolbar"><h2>${GM_SITE?'Trainer Party':'Current Party'} <span class="chip">${active.length}/6</span></h2>
- <div class="tabs">${GM_SITE?`<select id="trainer-filter" aria-label="Select Trainer">${option('','Select trainer…',ownerFilter)}${trainers.map(t=>option(t.uid,t.email||t.uid,ownerFilter)).join('')}</select><button class="btn primary" data-act="new">+ Assign Pokémon</button>`:'<button class="btn primary" data-act="request">+ Request Pokémon</button>'}
+ <div class="tabs">${GM_SITE?`<select id="trainer-filter" aria-label="Select Trainer">${option('','Select trainer…',ownerFilter)}${trainers.map(t=>option(t.uid,trainerLabel(t.uid),ownerFilter)).join('')}</select><button class="btn primary" data-act="new">+ Assign Pokémon</button>`:'<button class="btn primary" data-act="request">+ Request Pokémon</button>'}
  <button class="btn ${view==='party'?'primary':''}" data-act="party">Party</button><button class="btn ${view==='storage'?'primary':''}" data-act="storage">Storage (${storage.length})</button></div></div>`;
 }
 function listView(){
@@ -193,19 +292,19 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>`:''}${requestsSection()}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>`:''}${requestsSection()}`;
 }
 function detail(m){
  const s=m.baseStats||{},d=combatSummary(m,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
- <div class="detail-head">${artwork(m)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span></h2><p>${esc(m.speciesName)} · ${esc((m.types||[]).join(' / '))} · ${esc(m.ability||'No ability')}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p></div></div></section>
+ <div class="detail-head">${artwork(m)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span></h2><p>${esc(m.speciesName)} · ${esc((m.types||[]).join(' / '))} · ${esc(m.ability||'No ability')}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(m.ability)?`<p class="hint"><b>${esc(m.ability)}:</b> ${esc(customAbilityByName(m.ability).description)}</p>`:''}</div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet</h3><div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
  <div class="stats-grid"><div class="stat"><b>${d.universalAC??'11 + PB'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
  <p class="flag">V5.2: damage dice × offense × STAB × type effectiveness × defense. AC = 11 + proficiency bonus; any GM override replaces the displayed AC. Tier multipliers are automatic.</p>
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
- const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div></div>`;
+ const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
  <section class="panel"><h3>Battle tracking</h3><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
@@ -230,15 +329,18 @@ function gmForm(){
  <form id="assign-form" class="form-grid">
  <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button class="btn" data-act="lookup" type="button">Fetch stats from PokéAPI / custom list</button><span class="hint" id="species-source">${draft?esc(d.source||''):'Look up a species before saving.'}</span></div>
- <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,t.email||t.uid,d.ownerUid||ownerFilter)).join('')}</select></label>
+ <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,trainerLabel(t.uid),d.ownerUid||ownerFilter)).join('')}</select></label>
  <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label>
  <label class="field">Nickname<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
- <label class="field">Ability<input name="ability" list="abilities" maxlength="48" value="${esc(d.ability||d.abilities?.[0]||'')}"><datalist id="abilities">${(d.abilities||[]).map(a=>`<option value="${esc(a)}">`).join('')}</datalist></label>
+ <label class="field">Ability<input name="ability" list="abilities" maxlength="48" value="${esc(d.ability||d.abilities?.[0]||'')}"><datalist id="abilities">${[...(d.abilities||[]),...customAbilities.map(a=>a.name)].map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist></label>
  <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp||defaultHp}"></label>
  <label class="field">Current HP<input name="currentHp" type="number" min="0" max="3000" required value="${d.currentHp??d.maxHp??defaultHp}"></label>
  <label class="field">Party slot<select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,d.slot??0)).join('')}</select></label>
  <label class="field">Held item<input name="heldItem" maxlength="80" value="${esc(d.heldItem||'')}"></label>
- <label class="field full">Four moves (comma-separated)<input name="moves" maxlength="240" placeholder="Quick Attack, Force Palm, Endure, Feint" value="${esc((d.moves||[]).join(', '))}" list="known-moves"><datalist id="known-moves">${(d.knownMoves||[]).slice(0,120).map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist></label>
+ <div class="field full"><span class="eyebrow">Four move slots</span><p class="hint">Choose one move per slot. Each field searches the official learnset and your saved custom moves.</p>
+ <div class="move-fields">${Array.from({length:4},(_,i)=>`<label class="field">Move ${i+1}<input name="move${i+1}" maxlength="48" list="known-moves" placeholder="Search or type a move" value="${esc((d.moves||[])[i]||'')}"></label>`).join('')}</div>
+ <datalist id="known-moves">${moveOptions(d).map(name=>`<option value="${esc(name)}"></option>`).join('')}</datalist>
+ <div class="actions"><button type="button" class="btn small" data-act="define-move">+ Define custom move</button><button type="button" class="btn small" data-act="define-ability">+ Define custom ability</button></div></div>
  <label class="field full">Location obtained / history<input name="origin" maxlength="150" value="${esc(d.origin||'')}"></label>
  <label class="field full">Shared notes (visible to Trainer)<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
  <p class="hint full">Official six base stats, types, abilities and artwork are imported automatically. Default HP is calculated from our older V4 baseline until the finalized V5.2 HP rule is entered; you can override HP above. The obsolete V4 AC is NOT used.</p>
@@ -278,7 +380,7 @@ function customForm(){
  <form id="custom-form" class="form-grid">
  <label class="field">Species/form name<input required name="name" maxlength="65" placeholder="Mega Charizard Z"></label>
  <label class="field">Types (comma-separated)<input required name="types" maxlength="70" placeholder="Fire, Dragon"></label>
- <label class="field full">Abilities (comma-separated)<input name="abilities" maxlength="140" placeholder="Kingdom's End"></label>
+ <label class="field full">Abilities (comma-separated)<input name="abilities" list="custom-species-abilities" maxlength="140" placeholder="Kingdom's End"><datalist id="custom-species-abilities">${customAbilities.map(a=>`<option value="${esc(a.name)}"></option>`).join('')}</datalist><span class="hint">You can register an ability's complete effects separately in Custom Abilities.</span></label>
  ${statInputs(null)}
  <label class="field full">Artwork URL (HTTPS, optional)<input name="spriteUrl" type="url" placeholder="https://…"></label>
  <label class="field full">Or upload artwork (PNG/JPG/WebP, compressed to small WebP)<input name="upload" type="file" accept="image/png,image/jpeg,image/webp"></label>
@@ -292,13 +394,15 @@ function render(){
  chip.textContent=GM_SITE?'GM authenticated':user.email||'Trainer';
  if(view==='assign'){root.innerHTML=gmForm();return}
  if(view==='custom'){root.innerHTML=customForm();return}
+ if(view==='custom-move'){root.innerHTML=catalogForm('move');return}
+ if(view==='custom-ability'){root.innerHTML=catalogForm('ability');return}
  if(view==='rules'){root.innerHTML=rulesForm();return}
  if(view==='request'){root.innerHTML=requestForm();return}
  if(!collectionReady){root.innerHTML=collectionError?`<section class="panel"><h2>Pokémon collection could not load</h2><p>${esc(collectionError)}</p><p>Firestore has not granted access to the Pokémon collection. The GM must publish the latest <b>firestore.rules</b> from the GM repository in the Firebase Console. Refresh after the rules are live.</p><a class="btn" href="./index.html">Return to Fieldwork</a></section>`:'<section class="panel"><p>Loading Pokémon records…</p></section>';return}
  const mon=pokemon.find(m=>m.id===chosen);
  root.innerHTML=mon?detail(mon):listView();
 }
-function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';view='party';render()}
+function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';returnToAssign=false;view='party';render()}
 async function selectMon(id){
  chosen=id;const m=pokemon.find(x=>x.id===id);
  if(m){moveInfo={};await lookupMoves(m.moves||[]);render()}
@@ -339,7 +443,7 @@ async function saveAssign(form){
  if(!trainers.some(x=>x.uid===ownerUid))throw Error('Choose an approved Trainer.');
  const level=Number(f.get('level')),slot=Number(f.get('slot'));
  const maxHp=Number(f.get('maxHp')),currentHp=Number(f.get('currentHp'));
- const moves=cap(f.get('moves'),240).split(',').map(x=>x.trim()).filter(Boolean);
+ const moves=registrationMoves(f);
  if(!Number.isInteger(level)||level<1||level>100)throw Error('Level must be between 1 and 100.');
  if(!Number.isInteger(slot)||slot<0||slot>6)throw Error('Choose a valid party slot.');
  if(!Number.isInteger(maxHp)||maxHp<1||maxHp>3000||!Number.isInteger(currentHp)||currentHp<0||currentHp>maxHp)throw Error('Current HP must be between 0 and maximum HP.');
@@ -384,6 +488,11 @@ root.addEventListener('click',async e=>{
   if(action==='party'||action==='storage'){chosen='';view=action;render()}
   if(action==='show')await selectMon(b.dataset.id);
   if(action==='back')clearSelection();
+  if(action==='catalog-back'&&GM_SITE)catalogReturn();
+  if((action==='define-move'||action==='define-ability')&&GM_SITE){
+    returnToAssign=view==='assign';if(returnToAssign)copyAssignmentDraft();
+    view=action==='define-move'?'custom-move':'custom-ability';render();
+  }
   if(action==='new'&&GM_SITE){view='assign';draft=null;activeRequestId='';editingId='';chosen='';render()}
   if(action==='request'&&!GM_SITE){requestDraft=null;view='request';chosen='';render()}
   if(action==='request-lookup'&&!GM_SITE){const f=document.getElementById('request-form');const species=await findSpecies(f.elements.species.value);requestDraft={...species,level:Number(f.elements.level.value)||5,nickname:f.elements.nickname.value,notes:f.elements.notes.value};say('Species stats loaded. Submit your request to the GM.');render()}
@@ -433,6 +542,8 @@ root.addEventListener('submit',async e=>{
   if(form.id==='track-form')await saveTracking(form);
   if(form.id==='assign-form'&&GM_SITE)await saveAssign(form);
   if(form.id==='custom-form'&&GM_SITE)await saveCustom(form);
+  if(form.id==='custom-move-form'&&GM_SITE)await saveCatalog(form,true);
+  if(form.id==='custom-ability-form'&&GM_SITE)await saveCatalog(form,false);
   if(form.id==='request-form'&&!GM_SITE)await saveRequest(form);
   if(form.id==='rules-form'&&GM_SITE)await saveRules(form);
  }catch(err){fail(err)}finally{busy=false;if(button?.isConnected)button.disabled=false}
