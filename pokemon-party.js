@@ -562,6 +562,16 @@ async function saveAssign(form){
  const level=Number(f.get('level')),slot=Number(f.get('slot'));
  const maxHp=Number(f.get('maxHp')),currentHp=Number(f.get('currentHp'));
  const moves=registrationMoves(f);
+ const teraType=String(f.get('teraType')||d.teraType||d.types?.[0]||'normal');
+ if(!TYPES.includes(teraType))throw Error('Choose a valid Tera type.');
+ const megaSlug=String(f.get('megaSlug')||'');
+ const selectedMega=megaSlug?megaForms.find(x=>x.slug===megaSlug):null;
+ if(megaSlug&&(!selectedMega||!megaCompatible(d,selectedMega)))throw Error('Selected Mega does not match the regular species.');
+ const megaForm=selectedMega?{
+  slug:selectedMega.slug,name:selectedMega.name,baseSpeciesKey:selectedMega.baseSpeciesKey,
+  baseStats:selectedMega.baseStats,types:selectedMega.types,ability:selectedMega.ability,
+  spriteUrl:selectedMega.spriteUrl||'',spriteData:selectedMega.spriteData||'',source:selectedMega.source||'custom'
+ }:null;
  if(!Number.isInteger(level)||level<1||level>100)throw Error('Level must be between 1 and 100.');
  if(!Number.isInteger(slot)||slot<0||slot>6)throw Error('Choose a valid party slot.');
  if(!Number.isInteger(maxHp)||maxHp<1||maxHp>3000||!Number.isInteger(currentHp)||currentHp<0||currentHp>maxHp)throw Error('Current HP must be between 0 and maximum HP.');
@@ -571,7 +581,11 @@ async function saveAssign(form){
   ownerUid,speciesKey:d.speciesKey,speciesName:d.speciesName,source:d.source,
   baseStats:d.baseStats,types:d.types,abilities:d.abilities||[],spriteUrl:d.spriteUrl||'',spriteData:d.spriteData||'',
   nickname:cap(f.get('nickname'),32),level,ability:cap(f.get('ability'),48),
-  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),updatedAt:serverTimestamp()
+  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),
+  teraType,megaForm,megaActive:(existing?.megaForm?.slug===megaSlug&&existing?.megaActive===true)||false,
+  teraActive:existing?.teraActive===true,zUsed:existing?.zUsed===true,
+  dynamaxTurns:Math.max(0,Math.min(3,Number(existing?.dynamaxTurns)||0)),
+  dynamaxUsed:existing?.dynamaxUsed===true,updatedAt:serverTimestamp()
  };
  // Swap out an occupied party slot in the target Trainer's collection.
  const occupying=pokemon.find(m=>m.ownerUid===ownerUid&&m.id!==existing?.id&&Number(m.slot)===slot&&slot>0);
@@ -618,6 +632,14 @@ root.addEventListener('click',async e=>{
   if(action==='reject'&&GM_SITE)await rejectRequest(b.dataset.id)
   if(action==='custom'&&GM_SITE){view='custom';chosen='';render()}
   if(action==='rules'&&GM_SITE){view='rules';chosen='';render()}
+  if(action==='mega-new'&&GM_SITE){editingMega=null;megaImported=false;view='mega-form';render()}
+  if(action==='mega-edit'&&GM_SITE){editingMega={...megaForms.find(m=>m.slug===b.dataset.id)};megaImported=editingMega.source==='official';view='mega-form';render()}
+  if(action==='mega-import'&&GM_SITE){busy=true;await importMega(document.getElementById('mega-form'))}
+  if(action.startsWith('g-')){
+    const mon=pokemon.find(x=>x.id===chosen);
+    if(!mon)throw Error('No Pokémon selected.');
+    await gimmickAction(action.slice(2),mon);
+  }
   if(action==='lookup'&&GM_SITE){
     busy=true;b.disabled=true;say('Fetching species stats…');
     const input=document.getElementById('species-query');
@@ -647,7 +669,11 @@ root.addEventListener('click',async e=>{
  }catch(err){fail(err)}finally{busy=false}
 });
 root.addEventListener('change',e=>{
- if(e.target.name==='name'&&(view==='custom-move'||view==='custom-ability')){
+ if(e.target.id==='tera-type'&&chosen){
+  const mon=pokemon.find(x=>x.id===chosen);
+  if(mon)setTeraType(mon,e.target.value).catch(fail);
+ }
+  if(e.target.name==='name'&&(view==='custom-move'||view==='custom-ability')){
   const record=(view==='custom-move'?customMoves:customAbilities).find(x=>x.name.toLowerCase()===e.target.value.trim().toLowerCase());
   const form=e.target.closest('form');
   if(record&&form){
@@ -680,6 +706,8 @@ root.addEventListener('submit',async e=>{
   if(form.id==='custom-ability-form'&&GM_SITE)await saveCatalog(form,false);
   if(form.id==='request-form'&&!GM_SITE)await saveRequest(form);
   if(form.id==='rules-form'&&GM_SITE)await saveRules(form);
+  if(form.id==='mega-form'&&GM_SITE)await saveMegaForm(form);
+  if(form.id==='gimmick-unlock-form'&&GM_SITE)await saveUnlocks(form);
  }catch(err){fail(err)}finally{busy=false;if(button?.isConnected)button.disabled=false}
 });
 
