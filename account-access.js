@@ -43,6 +43,7 @@ function render(){
  '<div class="actions"><a class="btn" href="./pokemon-party.html">Open Pokémon Manager</a><a class="btn" href="./index.html">Open Fieldwork</a></div></section>'+adminArea();
 }
 function listenCurrent(){
+ if(!user){login();return}
  const uid=user.uid;
  if(!user.emailVerified&&!rootGm()){render();return}
  for(const [path,cb] of [
