@@ -118,7 +118,7 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section>`:''}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button></div><p class="hint">${customs.length} custom species registered: ${esc(customs.map(x=>x.name).join(', ')||'none')}</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Configure the universal AC and 20-point multiplier table once so every Pokémon uses the proper campaign calculations.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'V5.2 table saved to Firestore.':'V5.2 modifiers not entered yet.'}</p></section>`:''}`;
 }
 function detail(m){
  const s=m.baseStats||{},d=combatSummary(m,battleRules);
