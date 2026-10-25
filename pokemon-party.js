@@ -398,11 +398,18 @@ async function saveRequest(form){
  if(!Number.isInteger(level)||level<1||level>100)throw Error('Choose a level from 1 to 100.');
  const pending=requests.filter(x=>x.status==='pending');
  if(pending.length>=10)throw Error('You already have ten pending requests. Ask your GM to review them first.');
- await addDoc(collection(store,'santara_pokemon_requests'),{
-  ownerUid:user.uid,speciesKey:species.speciesKey,speciesName:species.speciesName,
-  level,nickname:cap(f.get('nickname'),32),notes:cap(f.get('notes'),300),
-  status:'pending',createdAt:serverTimestamp(),resolvedAt:null
- });
+ try{
+  await addDoc(collection(store,'santara_pokemon_requests'),{
+   ownerUid:user.uid,speciesKey:species.speciesKey,speciesName:species.speciesName,
+   level,nickname:cap(f.get('nickname'),32),notes:cap(f.get('notes'),300),
+   status:'pending',createdAt:serverTimestamp(),resolvedAt:null
+  });
+ }catch(err){
+  if(err?.code==='permission-denied'||/missing or insufficient permissions/i.test(err?.message||'')){
+   throw Error('Firebase denied the Pokémon request. The GM must publish the updated Firestore rules that allow approved Trainers and authorized GM accounts to submit requests. Check Account & GM Access if your role has not been approved.');
+  }
+  throw err;
+ }
  say(`${species.speciesName} request sent to your GM.`);
  clearSelection();
 }
