@@ -7,3 +7,10 @@
 #request-form .stats-grid{margin-top:7px}
 #request-form .actions{grid-column:1/-1}
 @media(max-width:620px){#request-form .actions{grid-column:auto}}
+
+/* Independently searchable move slots and reusable custom definitions */
+.move-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:9px 0 14px}
+.move-fields .field{min-width:0}
+.move-fields input{width:100%}
+.move p.hint{margin:7px 0 0;line-height:1.5}
+@media(max-width:620px){.move-fields{grid-template-columns:1fr}}
