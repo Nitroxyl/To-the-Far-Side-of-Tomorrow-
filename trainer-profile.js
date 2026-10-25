@@ -304,7 +304,7 @@ function authHandler(u){
   });
   return;
  }
- if(!user.emailVerified){
+ if(!user.emailVerified&&user.uid!==GM_UID){
   gate('Email verification required','Please verify your email before opening Trainer Cards.','<a class="linkbtn" href="./index.html">Return to Pokédex to verify</a>');return;
  }
  if(user.uid===GM_UID){enter();return}
