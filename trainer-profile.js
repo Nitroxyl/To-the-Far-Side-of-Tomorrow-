@@ -21,7 +21,7 @@ const custom=(p,k)=>correctHex(p[k])?p[k]:themes[p.theme]?.[k==='customPrimary'?
 const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)===String(selected)?'selected':'')+'>'+esc(s)+'</option>').join('');
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
-let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopCard=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity';
+let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity';
 let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
@@ -280,6 +280,7 @@ function enter(){
  if(!stopCard)subscribe();
 }
 function authHandler(u){
+ if(stopRole){stopRole();stopRole=null}
  stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];ownPokemonLoaded=false;partyReady=false;
  if(stopCard){stopCard();stopCard=null}
  if(stopAccess){stopAccess();stopAccess=null}
@@ -307,14 +308,23 @@ function authHandler(u){
   gate('Email verification required','Please verify your email before opening Trainer Cards.','<a class="linkbtn" href="./index.html">Return to Pokédex to verify</a>');return;
  }
  if(user.uid===GM_UID){enter();return}
- gate('Checking Trainer access','Confirming that your registration has been approved by the GM.');
+ gate('Checking Trainer access','Looking up your existing Trainer approval or GM role.');
+ let gmRole=false,approvedAccess=false;
+ const refresh=()=>{
+  if(gmRole||approvedAccess){enter();return}
+  if(stopCard){stopCard();stopCard=null}
+  canEnter=false;
+  gate('Waiting for account approval','Your existing account needs Trainer approval or an authorized GM role. No new account is required.',
+   '<a class="linkbtn" href="./account-access.html">Check account access and copy UID</a>');
+ };
+ stopRole=onSnapshot(doc(store,'santara_gm_accounts',user.uid),snap=>{
+  const g=snap.exists()?snap.data():null;
+  gmRole=g?.enabled===true&&g.email===user.email;
+  refresh();
+ },e=>{console.warn('GM access lookup:',e.message);gmRole=false;refresh()});
  stopAccess=onSnapshot(doc(store,'santara_player_access',user.uid),snap=>{
-  if(snap.exists()&&snap.data()?.enabled===true){enter()}
-  else{
-   if(stopCard){stopCard();stopCard=null}canEnter=false;
-   gate('Waiting for GM approval','Only approved Trainers can view and edit Trainer Cards.','<a class="linkbtn" href="./index.html">Return to Pokédex</a>');
-  }
- },e=>gate('Could not check account',errorMessage(e),'<a class="linkbtn" href="./index.html">Return to Pokédex</a>'));
+  approvedAccess=snap.exists()&&snap.data()?.enabled===true;refresh();
+ },e=>gate('Could not check account',errorMessage(e),'<a class="linkbtn" href="./account-access.html">Check account access</a>'));
 }
 if(!config || Object.values(config).some(v=>typeof v==='string'&&v.includes('PASTE_'))){
  gate('Firebase not configured','The GM needs to configure the Player Pokédex.');
