@@ -22,7 +22,7 @@ const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
 let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopCard=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity';
-let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[];
+let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
 function gate(title,text,extra=''){
@@ -52,10 +52,10 @@ async function syncMyPublicParty(){
 }
 function subscribeParty(){
  stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;
- partySlots=Array(6).fill(null);partyReady=false;
+ partySlots=Array(6).fill(null);partyReady=false;ownPokemon=[];ownPokemonLoaded=false;
  stopParty=onSnapshot(doc(store,'santara_public_parties',profileUid),snap=>{
   // For your own card, the authoritative collection takes precedence.
-  if(owner && ownPokemon.length)return;
+  if(owner && ownPokemonLoaded)return;
   partySlots=snap.exists()&&Array.isArray(snap.data().slots)?snap.data().slots.slice(0,6):Array(6).fill(null);
   while(partySlots.length<6)partySlots.push(null);
   partyReady=true;
@@ -63,7 +63,7 @@ function subscribeParty(){
  },err=>{console.warn('Public party unavailable:',err.message);partyReady=true;if(!owner)render();});
  if(owner){
   stopOwnPokemon=onSnapshot(query(collection(store,'santara_pokemon'),where('ownerUid','==',user.uid)),snap=>{
-   ownPokemon=snap.docs.map(d=>d.data());
+   ownPokemon=snap.docs.map(d=>d.data());ownPokemonLoaded=true;
    syncMyPublicParty();
   },err=>console.warn('My Pokémon unavailable:',err.message));
  }
@@ -280,7 +280,7 @@ function enter(){
  if(!stopCard)subscribe();
 }
 function authHandler(u){
- stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];partyReady=false;
+ stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];ownPokemonLoaded=false;partyReady=false;
  if(stopCard){stopCard();stopCard=null}
  if(stopAccess){stopAccess();stopAccess=null}
  canEnter=false;user=u;dirty=false;original=null;
