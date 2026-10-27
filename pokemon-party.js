@@ -3,7 +3,7 @@ import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,Go
 import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=v52-requests-20261025-2';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
-import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js';
+import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
