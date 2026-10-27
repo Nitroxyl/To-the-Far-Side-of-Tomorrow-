@@ -185,16 +185,22 @@ async function setTeraType(mon,type){
 }
 async function gimmickAction(code,m){
  const enabled=unlocks(m.ownerUid),patch={updatedAt:serverTimestamp()};
+ // Mega is a player-toggle on a separate GM-approved snapshot, never
+ // a rewrite of the older Pokémon's stat/move document.
+ if(code==='mega'){
+  if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
+  if(!Object.prototype.hasOwnProperty.call(megaAssignments,m.id))throw Error('Your GM must save this Mega using the new isolated Mega assignment.');
+  if(!m.megaActive&&pokemon.some(p=>p.ownerUid===m.ownerUid&&p.id!==m.id&&p.megaActive===true))throw Error('Another Pokémon is already Mega Evolved. Revert it first.');
+  if(!m.megaActive&&(m.teraActive||Number(m.dynamaxTurns)>0))throw Error('Revert Terastallization or end Dynamax before Mega Evolving.');
+  await updateDoc(doc(store,'santara_pokemon_mega_assignments',m.id),{megaActive:!m.megaActive,updatedAt:serverTimestamp()});
+  return;
+ }
  if(code==='tera'){
   if(!enabled.tera)throw Error('Terastallization is locked.');
+  if(!m.teraActive&&m.megaActive)throw Error('Revert Mega Evolution before Terastallizing.');
   patch.teraType=TYPES.includes(m.teraType)?m.teraType:(m.types?.[0]||'normal');
   patch.teraActive=!m.teraActive;
-  if(patch.teraActive){patch.megaActive=false;patch.dynamaxTurns=0;}
- }else if(code==='mega'){
-  if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
-  if(!m.megaActive&&pokemon.some(p=>p.ownerUid===m.ownerUid&&p.id!==m.id&&p.megaActive===true))throw Error('Another Pokémon is already Mega Evolved. Revert it first.');
-  patch.megaActive=!m.megaActive;
-  if(patch.megaActive){patch.teraActive=false;patch.dynamaxTurns=0;}
+  if(patch.teraActive)patch.dynamaxTurns=0;
  }else if(code==='z'){
   if(!enabled.zMove)throw Error('Z-Moves are locked.');
   patch.zUsed=!m.zUsed;
@@ -203,8 +209,8 @@ async function gimmickAction(code,m){
   if(Number(m.dynamaxTurns)>0)patch.dynamaxTurns=0;
   else {
    if(m.dynamaxUsed)throw Error('Dynamax already used. Reset between battles.');
-   patch.dynamaxTurns=3;patch.dynamaxUsed=true;
-   patch.megaActive=false;patch.teraActive=false;
+   if(m.megaActive)throw Error('Revert Mega Evolution before Dynamax.');
+   patch.dynamaxTurns=3;patch.dynamaxUsed=true;patch.teraActive=false;
   }
  }else if(code==='next'){
   if(!enabled.dynamax||!m.dynamaxTurns)throw Error('Not currently Dynamaxed.');
