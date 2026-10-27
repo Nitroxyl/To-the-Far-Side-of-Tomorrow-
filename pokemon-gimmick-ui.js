@@ -27,12 +27,19 @@ export function editorUI(d,statKeys,statLabels,option,esc){
  <p class="hint full">Saving this definition will not change existing Pokémon until their GM reapplies the saved Mega form to their record.</p>
  <div class="actions"><button class="btn primary" type="submit">Save Mega definition</button></div></form></section>`;
 }
-export function controlsUI(m,g,esc,option,compatible){
+import {hasRequiredMegaStone} from './pokemon-mega-stones.js';
+export function controlsUI(m,g,esc,option,compatible,requiredStone=''){
+ const stoneEquipped=hasRequiredMegaStone(m,requiredStone);
+ const canMega=compatible&&(m.megaActive||stoneEquipped);
+ const stoneDescription=!compatible?'GM has not assigned a compatible Mega form.'
+  :!requiredStone?'GM must set the required Mega Stone for this assigned form.'
+  :stoneEquipped?'Required stone equipped: '+requiredStone
+  :'Requires '+requiredStone+' (currently holding '+(m.heldItem||'nothing')+').';
  const unlocked=KEYS.filter(k=>g[k]);
  return `<section class="panel"><h3>Battle mechanics</h3><p class="hint">Unlocked: ${unlocked.map(k=>LABELS[k]).join(', ')||'None yet'}</p>
  <div class="gimmick-grid">
  ${g.tera?`<div class="gimmick-tile"><b>Terastallization</b><label class="field">Tera Type<select id="tera-type">${TYPES.map(t=>option(t,cap(t),m.teraType||m.types?.[0]||'normal')).join('')}</select></label><button class="btn ${m.teraActive?'primary':''}" data-act="g-tera">${m.teraActive?'Revert Tera':'Terastallize'}</button></div>`:''}
- ${g.mega?`<div class="gimmick-tile"><b>Mega Evolution</b><p class="hint">${compatible?esc(m.megaForm.name):'GM has not assigned a compatible Mega form.'}</p><button class="btn ${m.megaActive?'primary':''}" data-act="g-mega" ${compatible?'':'disabled'}>${m.megaActive?'Revert Mega':'Mega Evolve'}</button></div>`:''}
+ ${g.mega?`<div class="gimmick-tile"><b>Mega Evolution</b><p class="hint">${compatible?esc(m.megaForm.name):'No compatible Mega form assigned.'}</p><p class="hint">${esc(stoneDescription)}</p><button class="btn ${m.megaActive?'primary':''}" data-act="g-mega" ${canMega?'':'disabled'}>${m.megaActive?'Revert Mega':'Mega Evolve'}</button></div>`:''}
  ${g.zMove?`<div class="gimmick-tile"><b>Z-Moves</b><p class="hint">${m.zUsed?'Used this battle':'Available'}</p><button class="btn" data-act="g-z">${m.zUsed?'Reset Z-Move':'Mark Z-Move Used'}</button></div>`:''}
  ${g.dynamax?`<div class="gimmick-tile"><b>Dynamax</b><p class="hint">${Number(m.dynamaxTurns)>0?m.dynamaxTurns+' turns left':m.dynamaxUsed?'Already used':'Available (3 turns)'}</p><div class="actions"><button class="btn ${m.dynamaxTurns?'primary':''}" data-act="g-dmax" ${m.dynamaxUsed&&!m.dynamaxTurns?'disabled':''}>${m.dynamaxTurns?'End Dynamax':'Dynamax'}</button>${m.dynamaxTurns?'<button class="btn small" data-act="g-next">Next Turn</button>':''}<button class="btn small" data-act="g-reset">Reset Dynamax</button></div></div>`:''}
  </div><p class="hint">Mega Evolution changes displayed stats, typing, ability and artwork; it does not overwrite the original Pokémon. Dynamax doubles displayed HP while active.</p></section>`;
