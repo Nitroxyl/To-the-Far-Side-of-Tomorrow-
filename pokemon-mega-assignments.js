@@ -30,6 +30,6 @@ export function cleanMegaSnapshot(mon,form){
 export function applyMegaOverlays(raw,assignments){
  return raw.map(mon=>{
   if(!Object.prototype.hasOwnProperty.call(assignments,mon.id))return mon;
-  return {...mon,megaForm:assignments[mon.id].megaForm??null};
+  return {...mon,megaForm:assignments[mon.id].megaForm??null,megaActive:assignments[mon.id].megaActive===true};
  });
 }
