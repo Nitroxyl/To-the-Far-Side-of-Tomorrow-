@@ -6,6 +6,7 @@ import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokem
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
+import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -190,6 +191,12 @@ async function gimmickAction(code,m){
  if(code==='mega'){
   if(!enabled.mega||!megaCompatible(m,m.megaForm))throw Error('Mega Evolution is locked or no compatible Mega has been assigned.');
   if(!Object.prototype.hasOwnProperty.call(megaAssignments,m.id))throw Error('Your GM must save this Mega using the new isolated Mega assignment.');
+  const requiredStone=megaAssignments[m.id]?.requiredStone||'';
+  if(!m.megaActive&&!hasRequiredMegaStone(m,requiredStone)){
+   throw Error(requiredStone
+    ?'Mega Evolution requires '+requiredStone+'. This Pokémon is currently holding '+(m.heldItem||'nothing')+'.'
+    :'The GM must save the required Mega Stone for this assigned form first.');
+  }
   if(!m.megaActive&&pokemon.some(p=>p.ownerUid===m.ownerUid&&p.id!==m.id&&p.megaActive===true))throw Error('Another Pokémon is already Mega Evolved. Revert it first.');
   if(!m.megaActive&&(m.teraActive||Number(m.dynamaxTurns)>0))throw Error('Revert Terastallization or end Dynamax before Mega Evolving.');
   await updateDoc(doc(store,'santara_pokemon_mega_assignments',m.id),{megaActive:!m.megaActive,updatedAt:serverTimestamp()});
@@ -491,7 +498,7 @@ function detail(m){
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
  const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
- ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm))}<section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
+ ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm),megaAssignments[m.id]?.requiredStone||'')}<section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
  <label class="field">Status<select name="status">${statuses.map(s=>option(s,s,m.status||'None')).join('')}</select></label>
  <label class="field">Party slot <span class="hint">Storage = 0</span><select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,m.slot||0)).join('')}</select></label>
