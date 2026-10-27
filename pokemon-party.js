@@ -5,6 +5,7 @@ import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
+import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -19,9 +20,9 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null;
 let roleAllowed=false,accessApproved=false;
-let pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
+let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -250,11 +251,17 @@ function gate(message){
  root.innerHTML=`<section class="panel"><h2>${esc(message)}</h2><p>Use the same Firebase account as the Santara Fieldwork website. New players must verify their email and be approved by the GM.</p>
  <form id="party-login" class="form-grid"><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="btn primary" type="submit">Sign in</button><button type="button" class="btn" data-act="google">Sign in with Google</button><a class="btn" href="./index.html">Create account / request access</a></div></form></section>`;
 }
+function updateMegaProjection(){
+ pokemon=applyMegaOverlays(rawPokemon,megaAssignments);
+ pokemon.sort((a,b)=>(a.slot||99)-(b.slot||99)||String(a.nickname||a.speciesName).localeCompare(String(b.nickname||b.speciesName)));
+ if(chosen&&!pokemon.some(p=>p.id===chosen))chosen='';
+ if(view!=='assign')render();
+}
 function stop(){
  roleAllowed=false;accessApproved=false;
  mirrorDesired.clear();mirrorLast.clear();
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=null;pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole,stopMegaAssignments].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=stopMegaAssignments=null;rawPokemon=[];megaAssignments={};pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -265,6 +272,21 @@ function guard(){
 }
 function unlocks(uid){return GM_SITE?trainerUnlocks[uid]||initialUnlocks():playerUnlocks;}
 function connect(){
+ // Only the GM can create Mega assignments. Players subscribe to their own
+ // published snapshots without reading the unreleased GM Mega catalogue.
+ stopMegaAssignments=onSnapshot(
+  GM_SITE?collection(store,'santara_pokemon_mega_assignments'):
+   query(collection(store,'santara_pokemon_mega_assignments'),where('ownerUid','==',user.uid)),
+  snap=>{
+   megaAssignments=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
+   if(collectionReady)updateMegaProjection();
+  },
+  error=>{
+   console.warn('Mega assignment sync unavailable:',error.message);
+   say('Mega assignments cannot load: '+error.message+'. The new Mega assignment rules may not be published.');
+  }
+ );
+
  stopGimmicks=onSnapshot(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
    if(GM_SITE)trainerUnlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
    else playerUnlocks=snap.exists()?snap.data():initialUnlocks();
@@ -279,11 +301,10 @@ function connect(){
  if(stopPokemon)stopPokemon();
  const col=collection(store,'santara_pokemon');
  stopPokemon=onSnapshot(GM_SITE?col:query(col,where('ownerUid','==',user.uid)),snapshot=>{
-   collectionReady=true;collectionError='';pokemon=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+   collectionReady=true;collectionError='';rawPokemon=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+   pokemon=applyMegaOverlays(rawPokemon,megaAssignments);
    publishVisibleParties();
-   pokemon.sort((a,b)=>(a.slot||99)-(b.slot||99)||String(a.nickname||a.speciesName).localeCompare(String(b.nickname||b.speciesName)));
-   if(chosen&&!pokemon.find(m=>m.id===chosen))chosen='';
-   render();
+   updateMegaProjection();
  },e=>{collectionReady=false;collectionError=e?.message||String(e);render();say('Pokémon collection: '+collectionError)});
  stopRequests=onSnapshot(GM_SITE?collection(store,'santara_pokemon_requests'):query(collection(store,'santara_pokemon_requests'),where('ownerUid','==',user.uid)),snap=>{requests=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));render()},e=>console.warn('Pokémon requests unavailable:',e.message));
  if(GM_SITE){
