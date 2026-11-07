@@ -48,7 +48,7 @@ function reconcile(){
  if(!permitted)signedOut(GM_SITE?'GM authorization required':'Trainer access required');
 }
 function beginUser(next){
- resetListeners();user=next;error('');chip.textContent=user?.email||'Not signed in';
+ resetListeners();user=next;state.attackerId=idFromUrl;state.defenderId='manual';state.moveName='';state.dice='';state.diceTouched=false;state.typeTouched=false;state.categoryTouched=false;state.rolledDice=null;state.manualAttacker=makeManual('Wild attacker');state.manualDefender=makeManual('Wild defender');error('');chip.textContent=user?.email||'Not signed in';
  if(!user){signedOut('Sign in to calculate damage');return}
  if(!user.emailVerified&&user.uid!==ROOT_UID){signedOut('Verify your email to use the calculator');return}
  if(user.uid===ROOT_UID){eligible=true;connected=true;connect();return}
@@ -82,12 +82,12 @@ function connect(){
  listen(GM_SITE?collection(db,'santara_trainer_gimmicks'):doc(db,'santara_trainer_gimmicks',user.uid),snap=>{
   if(GM_SITE)unlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
   else myUnlocks=snap.exists()?snap.data():initialUnlocks();
-  if(ready)renderResult();
+  if(ready)render();
  },'Mechanic unlocks');
 }
 function updatePokemon(){
  pokemon=applyMegaOverlays(rawPokemon,megaAssignments).sort((a,b)=>(a.speciesName||'').localeCompare(b.speciesName||''));
- if(!pokemon.some(p=>p.id===state.attackerId))state.attackerId=pokemon[0]?.id||'manual';
+ if(!state.attackerId||(state.attackerId!=='manual'&&!pokemon.some(p=>p.id===state.attackerId)))state.attackerId=pokemon[0]?.id||'manual';
  if(state.defenderId!=='manual'&&!pokemon.some(p=>p.id===state.defenderId))state.defenderId='manual';
  if(!initialBurnSet){state.burned=/^burn/i.test(String(attacker()?.status||''));initialBurnSet=true;}
  if(!state.moveName){
