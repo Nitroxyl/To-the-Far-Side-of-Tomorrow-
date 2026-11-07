@@ -60,6 +60,7 @@ function beginUser(next){
 }
 
 function connect(){
+ root.innerHTML='<section class="panel">Loading your Pokémon and battle rules…</section>';
  const listen=(ref,onData,label)=>{
   subscriptions.push(onSnapshot(ref,onData,e=>error(label+': '+e.message)));
  };
@@ -82,7 +83,6 @@ function connect(){
   else myUnlocks=snap.exists()?snap.data():initialUnlocks();
   if(ready)renderResult();
  },'Mechanic unlocks');
- root.innerHTML='<section class="panel">Loading your Pokémon and battle rules…</section>';
 }
 function updatePokemon(){
  pokemon=applyMegaOverlays(rawPokemon,megaAssignments).sort((a,b)=>(a.speciesName||'').localeCompare(b.speciesName||''));
