@@ -17,7 +17,7 @@ let app,auth,store,user=null,allowed=false,connected=false,role=false,approved=f
 let stopAuth=null,stopRole=null,stopApproval=null,subs=[];
 let raw=[],megaAssignments={},roster=[],combat={},profiles=[],unlocks={},playerUnlocks=initialUnlocks();
 const queryId=new URLSearchParams(window.location.search).get('actor')||'';
-const view={actorId:queryId,targetId:'',kind:'move',name:'',editing:false,editingName:'',editingKind:'move',notice:'',busy:false};
+const view={actorId:queryId,targetId:'',kind:'move',name:'',editing:false,editingName:'',editingKind:'move',profileDraft:null,notice:'',busy:false};
 const say=msg=>{feedback.textContent=msg||''};
 function clearSubscriptions(){
  for(const stop of subs)stop?.();subs=[];
@@ -134,8 +134,8 @@ function effectRow(e,i){
 function profileEditor(){
  if(!GM_SITE||!view.editing)return '';
  const known=currentProfile();
- const active=known&&known.kind===view.kind&&known.name===view.name?known:null;
- const p=active||{name:view.name||'',kind:view.kind,trigger:view.kind==='move'?'manual':'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[]};
+ const active=view.profileDraft||known;
+ const p=active||{name:view.name||'',kind:view.kind,trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[]};
  const rows=Array.from({length:4},(_,i)=>effectRow(p.effects[i],i));
  return '<section class="panel combat-editor"><div class="toolbar"><h3>GM: Configure automation profile</h3><button class="btn" type="button" data-act="cancel-edit">Close editor</button></div>'+
  '<p class="combat-note">These profiles work for official and custom moves/abilities. Custom moves still keep their existing descriptions and dice; this editor only defines automatic battle effects.</p>'+
@@ -152,16 +152,22 @@ function profileEditor(){
  rows.map((row,i)=>'<div class="full">'+
  '<label class="combat-checkbox"><input type="checkbox" name="effect'+i+'enabled"'+(i<p.effects.length?' checked':'')+'> Enable effect '+(i+1)+'</label>'+row+'</div>').join('')+
  '<div class="actions full"><button class="btn primary" type="submit">Save automation profile</button>'+
- (profiles.some(x=>x.kind===p.kind&&x.name?.toLowerCase()===p.name.toLowerCase())?'<button class="btn danger" type="button" data-act="delete-profile">Delete saved override</button>':'')+'</div></form></section>';
+ (profiles.some(x=>x.id===combatProfileKey(p))?'<button class="btn danger" type="button" data-act="delete-profile">Delete saved override</button>':'')+'</div></form></section>';
 }
 function render(){
  if(!allowed)return;
  if(!roster.length){root.innerHTML='<section class="panel"><h2>No Pokémon available</h2><p>Register Pokémon in My Pokémon first; this automation tool uses the existing roster.</p><a class="btn" href="./pokemon-party.html">Open Pokémon Manager</a></section>';return}
- const actor=currentActor(),target=currentTarget()||actor,profile=currentProfile();
+ const actor=currentActor(),profile=currentProfile();
+ if(GM_SITE&&profile?.target==='opponent'&&view.targetId===actor?.id){
+  view.targetId=roster.find(m=>m.id!==actor.id&&m.ownerUid!==actor.ownerUid)?.id
+   ||roster.find(m=>m.id!==actor.id)?.id||actor.id;
+ }
+ const target=currentTarget()||actor;
  const moves=actionOptions(actor),record=battleState(actor).moveRecords.find(r=>r.key===(profile?combatProfileKey(profile):''));
  const used=record?.uses||0,next=record?.nextTurn||1,turn=battleState(actor).turn;
  const locked=Boolean(profile&&(profile.kind==='move'&&profile.maxUses&&used>=profile.maxUses||turn<next));
  const enemyNotAllowed=!GM_SITE&&profile?.target==='opponent';
+ const opponentSelf=profile?.target==='opponent'&&target?.id===actor?.id;
  const targetMon=profile?.target==='self'?actor:target;
  root.innerHTML='<section class="combat-grid"><div class="panel">'+
  '<h2>Choose Pokémon &amp; action</h2>'+
@@ -176,13 +182,19 @@ function render(){
  effectSummary(profile)+
  (locked?'<p class="combat-warning">Unavailable: '+(used>=profile?.maxUses&&profile?.maxUses?'uses exhausted':'cooldown until turn '+next)+'</p>':'')+
  (enemyNotAllowed?'<p class="combat-warning">Enemy-target effects must be applied by the GM. Players can automate effects on their own Pokémon only.</p>':'')+
- '<div class="combat-toolbar">'+(profile?'<button class="btn primary" data-act="apply" '+(locked||enemyNotAllowed||view.busy?'disabled':'')+' type="button">Apply action effects</button>':'<button class="btn" disabled>No configured effects</button>')+
+ (opponentSelf?'<p class="combat-warning">Choose a different Pokémon as the opponent.</p>':'')+
+ '<div class="combat-toolbar">'+(profile?'<button class="btn primary" data-act="apply" '+(locked||enemyNotAllowed||opponentSelf||view.busy?'disabled':'')+' type="button">Apply action effects</button>':'<button class="btn" disabled>No configured effects</button>')+
  (GM_SITE?'<button class="btn" data-act="configure" type="button">Configure action</button>':'')+'</div></div>'+
  '<p class="combat-note">Move damage, accuracy rolls, target distance and situational immunities remain GM adjudications. Only listed status, HP and stage effects are automated.</p>'+
  '</div><div class="panel"><div class="toolbar"><h2>Battle state</h2><div class="combat-toolbar"><button class="btn" data-act="next-turn" type="button">Next turn</button><button class="btn" data-act="reset-state" type="button">Reset stages/uses</button></div></div>'+
  '<h3>'+esc(actor.nickname||actor.speciesName)+' (actor)</h3>'+stateHtml(actor)+
  (targetMon?.id!==actor.id?'<h3>'+esc(targetMon.nickname||targetMon.speciesName)+' (target)</h3>'+stateHtml(targetMon):'')+
- '</div></section>'+profileEditor();
+ '</div></section>'+
+ (GM_SITE?'<section class="panel"><div class="toolbar"><h2>GM automation library</h2><div class="combat-toolbar"><button class="btn" data-act="new-move-profile">+ Move</button><button class="btn" data-act="new-ability-profile">+ Ability</button></div></div>'+
+ '<p class="hint">Create effects for official or custom content even before it is assigned to a Pokémon. Saved profiles override matching built-in templates.</p>'+
+ (profiles.length?'<div class="combat-tables">'+profiles.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>
+ '<div class="combat-record"><span>'+esc(p.name)+' · '+esc(p.kind)+' · '+esc(title(p.trigger))+'</span><button class="btn small" data-act="edit-profile" data-id="'+esc(p.id)+'">Edit</button></div>').join('')+'</div>':'<p class="hint">No saved automation overrides yet. Built-in status and stat-stage templates are still available.</p>')+'</section>':'')
+ +profileEditor();
 }
 function choose(id){
  if(id==='actor-id'){
@@ -204,6 +216,7 @@ async function apply(){
  if(!GM_SITE&&p.target==='opponent')throw Error('Enemy effects require GM approval.');
  const target=p.target==='self'?actor:currentTarget();
  if(!target)throw Error('Choose the effect target.');
+ if(p.target==='opponent'&&target.id===actor.id)throw Error('Choose a different opponent.');
  if(!GM_SITE&&(target.ownerUid!==user.uid||actor.ownerUid!==user.uid))throw Error('Only the GM may edit another trainer’s Pokémon.');
  if(!confirm('Apply '+p.name+' ('+title(p.trigger)+') to '+(target.nickname||target.speciesName)+'? This will save HP, status and stage changes.'))return;
  const result=statusAfterEffects({actor,target,actorState:battleState(actor),targetState:battleState(target),profile:p});
@@ -270,17 +283,17 @@ function captureProfile(form){
 async function saveProfile(form){
  if(!GM_SITE)throw Error('Only GMs can define actions.');
  const p=captureProfile(form);
- if(p.kind!==view.kind||actionSlug(p.name)!==actionSlug(view.name))throw Error('To define a different move/ability, select it on the Pokémon sheet first.');
  const id=combatProfileKey(p);
+ if(view.profileDraft?.id&&view.profileDraft.id!==id)throw Error('To rename a saved profile, create a new definition instead.');
  await setDoc(doc(store,'santara_combat_profiles',id),{...p,updatedAt:serverTimestamp()});
- view.editing=false;say('Automation profile for '+p.name+' saved.');render();
+ view.editing=false;view.profileDraft=null;say('Automation profile for '+p.name+' saved.');render();
 }
 async function deleteProfile(){
  if(!GM_SITE)throw Error('GM access required.');
- const p=currentProfile();if(!p||!profiles.some(x=>x.id===combatProfileKey(p)))return;
+ const p=view.profileDraft||currentProfile();if(!p||!profiles.some(x=>x.id===combatProfileKey(p)))return;
  if(!confirm('Delete the saved automation override for '+p.name+'? A built-in default, if available, will be used again.'))return;
  await deleteDoc(doc(store,'santara_combat_profiles',combatProfileKey(p)));
- view.editing=false;say('Saved profile deleted.');render();
+ view.editing=false;view.profileDraft=null;say('Saved profile deleted.');render();
 }
 root.addEventListener('change',e=>{
  if(e.target.id==='actor-id'){view.actorId=e.target.value;choose('actor-id')}
@@ -302,8 +315,12 @@ root.addEventListener('click',async e=>{
   if(action==='apply')await apply();
   if(action==='next-turn')await nextTurn();
   if(action==='reset-state')await resetState();
-  if(action==='configure'){view.editing=true;render()}
-  if(action==='cancel-edit'){view.editing=false;render()}
+  if(action==='configure'){view.editing=true;view.profileDraft=null;render()}
+  if(action==='new-move-profile'||action==='new-ability-profile'){
+   view.editing=true;view.profileDraft={kind:action==='new-move-profile'?'move':'ability',name:'',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[]};render();
+  }
+  if(action==='edit-profile'){const profile=profiles.find(p=>p.id===b.dataset.id);if(!profile)throw Error('Profile not found');view.editing=true;view.profileDraft=profile;render()}
+  if(action==='cancel-edit'){view.editing=false;view.profileDraft=null;render()}
   if(action==='delete-profile')await deleteProfile();
  }catch(err){say('Action failed: '+(err.message||err))}
  finally{if(b.isConnected)b.disabled=false}
