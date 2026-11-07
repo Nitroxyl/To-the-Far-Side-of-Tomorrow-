@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1019">
+<title>V5.2 Damage Calculator · Santara Fieldwork</title>
+<link rel="stylesheet" href="./pokemon-party.css">
+<link rel="stylesheet" href="./damage-calculator.css?v=damage-v52-1">
+<script src="./firebase-config.js"></script>
+<script>window.SANTARA_POKEMON_EDITION="player";</script>
+</head>
+<body>
+<header class="bar"><a class="brand" href="./index.html">✦ SANTARA <span>FIELDWORK</span></a><nav><a href="./index.html">Fieldwork</a><a href="./pokemon-party.html">My Pokémon</a><a href="./account-access.html">Account</a></nav></header>
+<main class="shell">
+<section class="hero"><div><span class="eyebrow">SANTARA COMBAT / V5.2</span><h1>Damage Calculator<span class="accent">.</span></h1><p>Calculate physical and special damage from registered Pokémon, custom moves, active Megas and the campaign's V5.2 multipliers.</p></div><span id="calc-user" class="chip">Checking access…</span></section>
+<p id="calc-feedback" role="status" aria-live="polite"></p>
+<div id="calculator-root"><section class="panel">Signing in and loading Pokémon records…</section></div>
+<footer>SANTARA REGIONAL RESEARCH NETWORK · V5.2 COMBAT REFERENCE</footer>
+</main>
+<script type="module" src="./damage-calculator.js?v=damage-v52-1"></script>
+</body>
+</html>
