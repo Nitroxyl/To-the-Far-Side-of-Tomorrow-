@@ -74,7 +74,7 @@ function connect(){
  listen(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
   if(GM_SITE)unlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
   else playerUnlocks=snap.exists()?snap.data():initialUnlocks();
-  render();
+  refreshRoster();
  },'Gimmick unlocks');
 }
 function refreshRoster(){
