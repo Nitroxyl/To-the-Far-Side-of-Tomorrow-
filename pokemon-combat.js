@@ -3,7 +3,7 @@ import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/12.
 import {getFirestore,collection,doc,query,where,onSnapshot,setDoc,deleteDoc,writeBatch,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {initialUnlocks,effectivePokemon} from './pokemon-gimmicks.js';
 import {applyMegaOverlays} from './pokemon-mega-assignments.js';
-import {STAGE_KEYS,CONDITIONS,TRIGGERS,EFFECT_KINDS,RECIPIENTS,DEFAULT_PROFILES,blankCombatState,normalizeProfile,combatProfileKey,resolveProfile,statusAfterEffects,advanceCombatTurn,actionSlug} from './pokemon-action-automation.js';
+import {STAGE_KEYS,CONDITIONS,TRIGGERS,EFFECT_KINDS,RECIPIENTS,DEFAULT_PROFILES,blankCombatState,normalizeProfile,combatProfileKey,resolveProfile,statusAfterEffects,advanceCombatTurn,actionSlug} from './pokemon-action-automation.js?v=effects-2';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1',GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
 const root=document.getElementById('combat-root'),feedback=document.getElementById('combat-feedback'),chip=document.getElementById('combat-user');
