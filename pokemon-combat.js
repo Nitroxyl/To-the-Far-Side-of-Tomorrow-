@@ -186,7 +186,7 @@ function render(){
  (opponentSelf?'<p class="combat-warning">Choose a different Pokémon as the opponent.</p>':'')+
  '<div class="combat-toolbar">'+(profile?'<button class="btn primary" data-act="apply" '+(locked||enemyNotAllowed||opponentSelf||view.busy?'disabled':'')+' type="button">Apply action effects</button>':'<button class="btn" disabled>No configured effects</button>')+
  (GM_SITE?'<button class="btn" data-act="configure" type="button">Configure action</button>':'')+'</div></div>'+
- '<p class="combat-note">Move damage, accuracy rolls, target distance and situational immunities remain GM adjudications. Only listed status, HP and stage effects are automated.</p>'+
+ '<p class="combat-note">Apply only after confirming that the move hit and is not blocked by typing, abilities, Protect or terrain. Move damage, accuracy rolls, target distance and situational immunities remain GM adjudications. Only listed status, fixed HP and stage effects are automated.</p>'+
  '</div><div class="panel"><div class="toolbar"><h2>Battle state</h2><div class="combat-toolbar"><button class="btn" data-act="next-turn" type="button">Next turn</button><button class="btn" data-act="reset-state" type="button">Reset stages/uses</button></div></div>'+
  '<h3>'+esc(actor.nickname||actor.speciesName)+' (actor)</h3>'+stateHtml(actor)+
  (targetMon?.id!==actor.id?'<h3>'+esc(targetMon.nickname||targetMon.speciesName)+' (target)</h3>'+stateHtml(targetMon):'')+
