@@ -1,0 +1,37 @@
+/* Santara V5.2 damage calculator */
+.calc-top{display:grid;grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr);gap:13px;align-items:stretch}
+.calc-top .panel{margin-bottom:15px;min-width:0}
+.calc-vs{align-self:center;justify-self:center;font-weight:900;color:var(--teal);letter-spacing:1px}
+.calc-pokemon{display:flex;align-items:center;gap:14px;margin-top:15px;min-height:85px}
+.calc-pokemon b{font-size:18px}
+.calc-pokemon p{margin:4px 0}
+.calc-portrait{display:block;flex-shrink:0;width:84px;height:84px;object-fit:contain}
+.calc-silhouette{display:grid;place-items:center;font-size:34px;border:1px dashed var(--edge);border-radius:16px}
+.calc-columns{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.calc-columns>.panel{min-width:0}
+.calc-subgrid{margin-top:13px}
+.calc-manual{margin-top:15px;border:1px solid var(--edge);border-radius:13px;padding:13px;background:#122738}
+.calc-manual h3{font-size:15px;margin:0}
+.calc-manual .field{font-size:11px}
+.calc-checks{display:flex;gap:15px;margin:15px 0;flex-wrap:wrap}
+.calc-checkbox{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer}
+.calc-checkbox input{width:18px;height:18px;accent-color:var(--teal)}
+.calc-results{border-color:#447b83;background:linear-gradient(125deg,#1b3543,#172635)}
+.calc-score{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.calc-score>div{background:#0d2431;border:1px solid #3c5d69;border-radius:13px;padding:13px}
+.calc-score span{display:block;color:var(--muted);font-size:11px;min-height:35px}
+.calc-score strong{font-size:clamp(20px,3vw,30px);line-height:1.15;color:#ecf9f4}
+.calc-health{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;border:1px solid #3c5d69;background:#132e3b;border-radius:12px;padding:12px 15px;margin:14px 0}
+.calc-health b{color:var(--teal)}
+.calc-health span{font-size:12px;color:var(--muted)}
+.calc-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.calc-breakdown>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid #35505e;padding:7px 2px;font-size:12px}
+.calc-breakdown span{color:var(--muted)}
+.calc-breakdown b{font-weight:700;text-align:right;overflow-wrap:anywhere}
+.calc-empty{border:1px dashed #477681;padding:25px;border-radius:14px;text-align:center;color:var(--muted)}
+.calc-warning{border:1px solid #987550;padding:17px;border-radius:12px;color:var(--gold)}
+#damage-form .panel h2{font-size:20px}
+#move-meta{margin-top:9px}
+#calc-feedback{min-height:20px}
+@media(max-width:850px){.calc-top{grid-template-columns:1fr}.calc-top .panel{margin:0}.calc-vs{padding:4px}.calc-columns{grid-template-columns:1fr}}
+@media(max-width:650px){.calc-score{grid-template-columns:repeat(2,1fr)}.calc-breakdown{grid-template-columns:1fr}.calc-top .panel{padding:15px}}
