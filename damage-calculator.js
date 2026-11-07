@@ -21,6 +21,7 @@ let app,auth,db,user=null,eligible=false,connected=false,approved=false,gmRole=f
 let stopAuth=null,stopRole=null,stopApproved=null,subscriptions=[];
 let rawPokemon=[],megaAssignments={},pokemon=[],customMoves=[],battleRules=null,unlocks={},myUnlocks=initialUnlocks(),ready=false;
 let moveCache=new Map(),requestingMove=new Set();
+let initialBurnSet=false;
 const idFromUrl=new URLSearchParams(window.location.search).get('attacker')||'';
 const makeManual=(name)=>({speciesName:name,name,types:['normal'],originalTypes:['normal'],baseStats:{hp:80,attack:80,defense:80,specialAttack:80,specialDefense:80,speed:80},ability:'',heldItem:'',maxHp:100,currentHp:100,level:10});
 const state={
@@ -32,7 +33,7 @@ const error=message=>{feedback.textContent=message||''};
 const resetListeners=()=>{
  for(const fn of subscriptions)fn?.();subscriptions=[];
  stopRole?.();stopApproved?.();stopRole=stopApproved=null;
- rawPokemon=[];megaAssignments={};pokemon=[];customMoves=[];battleRules=null;unlocks={};myUnlocks=initialUnlocks();ready=false;connected=false;eligible=false;approved=false;gmRole=false;
+ rawPokemon=[];megaAssignments={};pokemon=[];customMoves=[];battleRules=null;unlocks={};myUnlocks=initialUnlocks();ready=false;connected=false;eligible=false;approved=false;gmRole=false;initialBurnSet=false;
 };
 const formElement=()=>document.getElementById('damage-form');
 
@@ -88,6 +89,7 @@ function updatePokemon(){
  pokemon=applyMegaOverlays(rawPokemon,megaAssignments).sort((a,b)=>(a.speciesName||'').localeCompare(b.speciesName||''));
  if(!pokemon.some(p=>p.id===state.attackerId))state.attackerId=pokemon[0]?.id||'manual';
  if(state.defenderId!=='manual'&&!pokemon.some(p=>p.id===state.defenderId))state.defenderId='manual';
+ if(!initialBurnSet){state.burned=/^burn/i.test(String(attacker()?.status||''));initialBurnSet=true;}
  if(!state.moveName){
   const first=attacker()?.moves?.[0];
   if(first){state.moveName=first;loadMove(first)}
@@ -188,7 +190,7 @@ function render(){
  '<datalist id="damage-known-moves">'+suggestions.map(n=>'<option value="'+esc(n)+'"></option>').join('')+'</datalist>'+
  '<div class="form-grid calc-subgrid"><label class="field">Type<select name="moveType">'+typeOptions(state.moveType)+'</select></label>'+
  '<label class="field">Category<select name="category">'+options([['physical','Physical'],['special','Special'],['status','Status']],state.category)+'</select></label></div>'+
- '<p class="hint" id="move-meta">'+(info?(esc(info.custom?'Santara custom move':'PokéAPI move')+' · BP '+esc(info.power??'—')+' · Accuracy '+esc(info.accuracy??'—')+'%'):'Move metadata loads from PokéAPI or custom move definitions.')+'</p>'+
+ '<p class="hint" id="move-meta">'+(info?(esc(info.custom?'Santara custom move':'PokéAPI move')+' · BP '+esc(info.power??'—')+' · Accuracy '+(info.accuracy==null?'—':esc(info.accuracy)+'%')):'Move metadata loads from PokéAPI or custom move definitions.')+'</p>'+
  (info?.description?'<p class="hint">'+esc(info.description)+'</p>':'')+
  field('Move damage dice', 'dice',state.dice,'placeholder="e.g. 3d8, 2d10+2 or fixed 15" autocomplete="off"')+
  '<p class="hint">Official base power does not yet have finalized V5.2 dice scaling. Enter the tabletop dice; saved custom move dice fill automatically.</p>'+
