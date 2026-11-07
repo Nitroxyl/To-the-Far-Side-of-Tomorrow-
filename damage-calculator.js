@@ -6,7 +6,7 @@ import {applyMegaOverlays} from './pokemon-mega-assignments.js';
 import {DAMAGE_TYPES,parseDice,rollDice,calculateDamage} from './pokemon-damage.js';
 import {fromPokeApi} from './pokemon-math.js';
 
-const ROOT_UID='ctBLgrVgkLOzUJYTyYgU9IwejYTyYgU9IwejYx1'.replace('jTyYgU9IwejYTyYgU9IwejYx1','jTyYgU9IwejYx1');
+const ROOT_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
 const root=document.getElementById('calculator-root');
 const feedback=document.getElementById('calc-feedback');
