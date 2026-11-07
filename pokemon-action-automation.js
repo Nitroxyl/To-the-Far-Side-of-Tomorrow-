@@ -103,16 +103,16 @@ export function advanceCombatTurn(current){
  return state;
 }
 export const DEFAULT_PROFILES=[
- {kind:'move',name:'Thunder Wave',trigger:'manual',target:'opponent',priority:0,range:8,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Paralyzed',stat:'attack'}]},
- {kind:'move',name:'Will-O-Wisp',trigger:'manual',target:'opponent',priority:0,range:8,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Burned',stat:'attack'}]},
- {kind:'move',name:'Toxic',trigger:'manual',target:'opponent',priority:0,range:8,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Badly poisoned',stat:'attack'}]},
- {kind:'move',name:'Spore',trigger:'manual',target:'opponent',priority:0,range:3,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Asleep',stat:'attack'}]},
+ {kind:'move',name:'Thunder Wave',trigger:'manual',target:'opponent',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Paralyzed',stat:'attack'}]},
+ {kind:'move',name:'Will-O-Wisp',trigger:'manual',target:'opponent',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Burned',stat:'attack'}]},
+ {kind:'move',name:'Toxic',trigger:'manual',target:'opponent',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Badly poisoned',stat:'attack'}]},
+ {kind:'move',name:'Spore',trigger:'manual',target:'opponent',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'status',recipient:'target',chance:100,amount:0,status:'Asleep',stat:'attack'}]},
  {kind:'move',name:'Swords Dance',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:2,status:'None',stat:'attack'}]},
  {kind:'move',name:'Nasty Plot',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:2,status:'None',stat:'specialAttack'}]},
  {kind:'move',name:'Dragon Dance',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'attack'},{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'speed'}]},
  {kind:'move',name:'Calm Mind',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'specialAttack'},{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'specialDefense'}]},
  {kind:'move',name:'Iron Defense',trigger:'manual',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:2,status:'None',stat:'defense'}]},
- {kind:'ability',name:'Intimidate',trigger:'on_enter',target:'opponent',priority:0,range:8,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'target',chance:100,amount:-1,status:'None',stat:'attack'}]},
+ {kind:'ability',name:'Intimidate',trigger:'on_enter',target:'opponent',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'target',chance:100,amount:-1,status:'None',stat:'attack'}]},
  {kind:'ability',name:'Speed Boost',trigger:'turn_end',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'speed'}]},
  {kind:'ability',name:'Moxie',trigger:'on_ko',target:'self',priority:0,range:0,cooldown:0,maxUses:0,effects:[{kind:'stage',recipient:'self',chance:100,amount:1,status:'None',stat:'attack'}]}
 ];
