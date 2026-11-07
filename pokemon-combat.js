@@ -67,7 +67,7 @@ function connect(){
   combat=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
   render();
  },'Live combat states');
- listen(collection(store,'santara_combat_profiles'),snap=>{
+ listen(GM_SITE?collection(store,'santara_combat_profiles'):query(collection(store,'santara_combat_profiles'),where('visibility','==','public')),snap=>{
   profiles=snap.docs.map(d=>({id:d.id,...d.data()}));
   render();
  },'Action profiles');
@@ -142,6 +142,7 @@ function profileEditor(){
  '<form id="profile-form" class="form-grid">'+
  field('Action name','name',p.name,'maxlength="48" required')+
  '<label class="field">Kind<select name="kind">'+select([['move','Move'],['ability','Ability']],p.kind)+'</select></label>'+
+ '<label class="field">Visibility<select name="visibility">'+select([['public','Available to approved players'],['gm','GM only (hide spoilers)']],p.visibility||'public')+'</select></label>'+
  '<label class="field">Trigger<select name="trigger">'+select(TRIGGERS.map(x=>[x,title(x)]),p.trigger)+'</select></label>'+
  '<label class="field">Target category<select name="target">'+select([['self','Self'],['ally','Ally'],['opponent','Opponent']],p.target)+'</select></label>'+
  field('Priority','priority',p.priority,'type="number" min="-7" max="7"')+
@@ -193,7 +194,7 @@ function render(){
  (GM_SITE?'<section class="panel"><div class="toolbar"><h2>GM automation library</h2><div class="combat-toolbar"><button class="btn" data-act="new-move-profile">+ Move</button><button class="btn" data-act="new-ability-profile">+ Ability</button></div></div>'+
  '<p class="hint">Create effects for official or custom content even before it is assigned to a Pokémon. Saved profiles override matching built-in templates.</p>'+
  (profiles.length?'<div class="combat-tables">'+profiles.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>
- '<div class="combat-record"><span>'+esc(p.name)+' · '+esc(p.kind)+' · '+esc(title(p.trigger))+'</span><button class="btn small" data-act="edit-profile" data-id="'+esc(p.id)+'">Edit</button></div>').join('')+'</div>':'<p class="hint">No saved automation overrides yet. Built-in status and stat-stage templates are still available.</p>')+'</section>':'')
+ '<div class="combat-record"><span>'+esc(p.name)+' · '+esc(p.kind) +' · '+esc(title(p.trigger))+' · '+(p.visibility==='gm'?'GM only':'Public')+'</span><button class="btn small" data-act="edit-profile" data-id="'+esc(p.id)+'">Edit</button></div>').join('')+'</div>':'<p class="hint">No saved automation overrides yet. Built-in status and stat-stage templates are still available.</p>')+'</section>':'')
  +profileEditor();
 }
 function choose(id){
@@ -284,8 +285,10 @@ async function saveProfile(form){
  if(!GM_SITE)throw Error('Only GMs can define actions.');
  const p=captureProfile(form);
  const id=combatProfileKey(p);
+ const visibility=String(new FormData(form).get('visibility')||'public');
+ if(!['public','gm'].includes(visibility))throw Error('Invalid visibility setting.');
  if(view.profileDraft?.id&&view.profileDraft.id!==id)throw Error('To rename a saved profile, create a new definition instead.');
- await setDoc(doc(store,'santara_combat_profiles',id),{...p,updatedAt:serverTimestamp()});
+ await setDoc(doc(store,'santara_combat_profiles',id),{...p,visibility,updatedAt:serverTimestamp()});
  view.editing=false;view.profileDraft=null;say('Automation profile for '+p.name+' saved.');render();
 }
 async function deleteProfile(){
