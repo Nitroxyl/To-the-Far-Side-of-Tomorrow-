@@ -118,7 +118,7 @@ function effectSummary(p){
   const effect=e.kind==='status'?'status → '+e.status:e.kind==='stage'?names[e.stat]+' '+(e.amount>=0?'+':'')+e.amount+' stages':e.kind==='heal'?'heal '+e.amount+' HP':'lose '+e.amount+' fixed HP';
   return '<li>'+esc(target+' · '+effect+' · '+e.chance+'% chance')+'</li>';
  });
- return '<p class="combat-profile-meta">Trigger: '+esc(title(p.trigger))+' · Priority '+p.priority+' · Grid range '+p.range+' squares · Cooldown '+p.cooldown+' turn(s) · '+(p.maxUses?'Max '+p.maxUses+' uses':'Unlimited uses')+'</p>'+
+ return '<p class="combat-profile-meta">Trigger: '+esc(title(p.trigger))+' · Priority '+p.priority+' · Grid range '+(p.range?'up to '+p.range+' squares':'GM adjudicates')+' · Cooldown '+p.cooldown+' turn(s) · '+(p.maxUses?'Max '+p.maxUses+' uses':'Unlimited uses')+'</p>'+
  (effectNames.length?'<ul>'+effectNames.join('')+'</ul>':'<p class="hint">Tracks usage/cooldown without modifying HP or status.</p>');
 }
 function effectRow(e,i){
@@ -145,7 +145,7 @@ function profileEditor(){
  '<label class="field">Trigger<select name="trigger">'+select(TRIGGERS.map(x=>[x,title(x)]),p.trigger)+'</select></label>'+
  '<label class="field">Target category<select name="target">'+select([['self','Self'],['ally','Ally'],['opponent','Opponent']],p.target)+'</select></label>'+
  field('Priority','priority',p.priority,'type="number" min="-7" max="7"')+
- field('Grid range (squares)','range',p.range,'type="number" min="0" max="30"')+
+ field('Grid range (squares; 0 = GM adjudicates)','range',p.range,'type="number" min="0" max="30"')+
  field('Cooldown (turns)','cooldown',p.cooldown,'type="number" min="0" max="10"')+
  field('Max uses (0 = unlimited)','maxUses',p.maxUses,'type="number" min="0" max="40"')+
  '<p class="hint full">Unused effect rows should be set to “None” using the checkbox below.</p>'+
