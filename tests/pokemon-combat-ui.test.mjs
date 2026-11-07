@@ -53,6 +53,7 @@ test('GM sees registered opponents and effect profile editor',()=>{
  assert.match(x.el('combat-root').innerHTML,/Thunder Wave/);
  assert.match(x.el('combat-root').innerHTML,/Golem/);
  assert.match(x.el('combat-root').innerHTML,/GM automation library/);
+ assert.equal(x.queries.find(q=>q.path==='santara_combat_profiles').filter,undefined);
 });
 test('Player sees own Pokémon only',()=>{
  const x=simulate('player');
@@ -60,6 +61,7 @@ test('Player sees own Pokémon only',()=>{
  assert.doesNotMatch(x.el('combat-root').innerHTML,/Golem/);
  assert.doesNotMatch(x.el('combat-root').innerHTML,/GM automation library/);
  assert.equal(x.queries.find(q=>q.path==='santara_pokemon').filter.value,'owner123456');
+ assert.equal(x.queries.find(q=>q.path==='santara_combat_profiles').filter.value,'public');
 });
 test('Unapproved account cannot read private Pokémon collections',()=>{
  const x=simulate('unapproved');
