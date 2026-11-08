@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const files=['pokemon-forms-learnsets.js','pokemon-math.js'];
 const [mod,math]=files.map(p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'));
 const api=new Function(mod.replace(/^export /gm,'')+math.replace(/^export /gm,'')+
- '\nreturn {officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
+ '\nreturn {customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
 const {
- officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
+ customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
  customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi
 }=api;
 function mockApi(url){
@@ -136,4 +136,35 @@ test('Forms missing Scarlet/Violet use only latest supported game moves',()=>{
 });
 test('Moves without version data are not admitted as all-game TMs',()=>{
  assert.deepEqual(officialMoveCatalog({moves:[{move:{name:'bad'},version_group_details:[]}]}).knownMoves,[]);
+});
+
+test('Custom ability form whitelist prevents cross-form usage',()=>{
+ const a={name:'Volcanic Hide',allowedSpeciesKeys:['growlithe-hisui']};
+ const normal={speciesKey:'growlithe',abilities:['intimidate']};
+ const hisui={speciesKey:'growlithe-hisui',abilities:['intimidate','rock-head']};
+ assert.equal(customAbilityEligible(a,normal),false);
+ assert.equal(customAbilityEligible(a,hisui),true);
+ assert.ok(!eligibleAbilityNames(normal,[a]).includes('Volcanic Hide'));
+ assert.ok(eligibleAbilityNames(hisui,[a]).includes('Volcanic Hide'));
+ assert.equal(legalAbility('Volcanic Hide',normal,[a]),false);
+ assert.equal(legalAbility('Volcanic Hide',hisui,[a]),true);
+ assert.equal(legalAbility('Intimidate',normal,[a]),true);
+});
+test('Legacy custom ability is not accidentally universal',()=>{
+ const old={name:"Kingdom's End"};
+ const charizard={speciesKey:'charizard',abilities:['blaze','solar-power']};
+ assert.equal(legalAbility("Kingdom's End",charizard,[old]),false);
+ assert.ok(!eligibleAbilityNames(charizard,[old]).includes("Kingdom's End"));
+ assert.ok(validCustomAbilityScope({allowedSpeciesKeys:['growlithe-hisui']}));
+ assert.ok(!validCustomAbilityScope({allowedSpeciesKeys:Array(31).fill('growlithe')}));
+});
+test('Explicit custom species abilities remain usable',()=>{
+ const original={name:'Apex Predator'};
+ assert.equal(legalAbility('Apex Predator',{speciesKey:'custom:spinotroleum',abilities:['Apex Predator']},[original]),true);
+ assert.equal(legalAbility('Apex Predator',{speciesKey:'growlithe',abilities:['intimidate']},[original]),false);
+});
+test('GM assignment filters and validates custom abilities',()=>{
+ const text=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
+ assert.match(text,/eligibleAbilityNames\(d,customAbilities\)/);
+ assert.match(text,/legalAbility\(selectedAbility,abilityMon,customAbilities\)/);
 });
