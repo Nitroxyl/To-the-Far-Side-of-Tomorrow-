@@ -157,7 +157,7 @@ export function officialMoveCatalog(pokemon,preferredGame=''){
 }
 export function officialMoveSource(mon,name){
  const dict={'machine':'TM','level-up':'Level-up','egg':'Egg/reminder','tutor':'Tutor','evolution':'Evolution'};
- return (mon?.moveMethods?.[moveKey(name)]||[]).map(method=>dict[method]||method).join(' · ');
+ return (mon?.moveMethods?.[moveKey(name)]||[]).map(method=>method.startsWith('inherited-')?'Pre-evo '+(dict[method.slice(10)]||method.slice(10)):dict[method]||method).join(' · ');
 }
 
 
@@ -183,6 +183,72 @@ export function legalAbility(name,mon,definitions){
  if(!key||!mon?.speciesKey)return false;
  if((mon.abilities||[]).some(x=>speciesKey(x)===key))return true;
  return (definitions||[]).some(x=>speciesKey(x.name)===key&&customAbilityEligible(x,mon));
+}
+
+
+const REGIONAL_EVOLUTION_ORIGINS={
+ 'sirfetchd':'galar','mr-rime':'galar','perrserker':'galar','obstagoon':'galar',
+ 'runerigus':'galar','cursola':'galar','overqwil':'hisui','sneasler':'hisui',
+ 'clodsire':'paldea','basculegion-male':'white-striped','basculegion-female':'white-striped'
+};
+export function preEvolutionVariety(currentName,previousSpecies){
+ const name=speciesKey(currentName),base=speciesKey(previousSpecies?.name);
+ const region=REGIONAL_EVOLUTION_ORIGINS[name]||name.match(/-(alola|galar|hisui|paldea)$/)?.[1]||'';
+ const variants=(previousSpecies?.varieties||[]).map(v=>({
+  name:speciesKey(v?.pokemon?.name),default:Boolean(v?.is_default)
+ })).filter(v=>v.name);
+ const matching=region&&variants.find(v=>v.name===base+'-'+region);
+ return matching?.name||variants.find(v=>v.default)?.name||variants.find(v=>v.name===base)?.name||variants[0]?.name||base;
+}
+export function historicalMoveCatalog(pokemon,ancestors=[]){
+ // Do not combine different regional varieties: only this form and its
+ // exact pre-evolution lineage contribute moves, across game generations.
+ const methods=new Map();
+ for(const [index,mon] of [pokemon,...ancestors].entries()){
+  for(const entry of mon?.moves||[]){
+   const name=moveKey(entry?.move?.name);
+   if(!name)continue;
+   for(const detail of entry?.version_group_details||[]){
+    if(!detail?.version_group?.name)continue;
+    const source=(index>0?'inherited-':'')+(detail.move_learn_method?.name||'unknown');
+    if(!methods.has(name))methods.set(name,new Set());
+    methods.get(name).add(source);
+   }
+  }
+ }
+ return {
+  versionGroup:'all-generations',
+  knownMoves:[...methods.keys()].sort(),
+  moveMethods:Object.fromEntries([...methods].map(([name,source])=>[name,[...source].sort()])),
+  tmMoves:[...methods].filter(([_,source])=>[...source].some(method=>method.endsWith('machine'))).map(([name])=>name).sort(),
+  inheritedFrom:ancestors.map(mon=>mon.name)
+ };
+}
+export async function officialFamilyMoveCatalog(pokemon,fetchFn=fetch){
+ const ancestors=[],visited=new Set();
+ let current=pokemon,incomplete=false;
+ const read=async path=>{
+  const r=await fetchPokeApi('https://pokeapi.co/api/v2/'+path,fetchFn);
+  if(!r.ok)throw Error('PokéAPI evolution lookup failed (HTTP '+r.status+').');
+  return r.json();
+ };
+ try{
+  for(let depth=0;depth<3;depth++){
+   const root=speciesKey(current?.species?.name);
+   if(!root||visited.has(root))break;
+   visited.add(root);
+   const species=await read('pokemon-species/'+encodeURIComponent(root)+'/');
+   const prev=species?.evolves_from_species?.name;
+   if(!prev||visited.has(prev))break;
+   const previousSpecies=await read('pokemon-species/'+encodeURIComponent(prev)+'/');
+   const variant=preEvolutionVariety(current.name,previousSpecies);
+   if(!variant)break;
+   const previousPokemon=await read('pokemon/'+encodeURIComponent(variant)+'/');
+   ancestors.push(previousPokemon);
+   current=previousPokemon;
+  }
+ }catch{incomplete=true}
+ return {...historicalMoveCatalog(pokemon,ancestors),incomplete};
 }
 
 export function officialLearnset(mon){
