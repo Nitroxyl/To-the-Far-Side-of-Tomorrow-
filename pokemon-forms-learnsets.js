@@ -22,13 +22,20 @@ export function speciesKey(value){
 }
 export function pokemonLookupKey(value){
  const raw=String(value||'').trim();
- const paren=raw.match(/^(.+?)\s*\(([^)]+)\)$/);
- if(!paren)return speciesKey(raw);
- const root=speciesKey(paren[1]);
- let suffix=speciesKey(paren[2]);
  const inverse={alolan:'alola',galarian:'galar',hisuian:'hisui',paldean:'paldea'};
- suffix=suffix.replace(/^(alolan|galarian|hisuian|paldean)(?=-|$)/,x=>inverse[x]||x);
- return suffix==='standard'?root:root+'-'+suffix;
+ const paren=raw.match(/^(.+?)\s*\(([^)]+)\)$/);
+ if(paren){
+  const root=speciesKey(paren[1]);
+  const suffix=speciesKey(paren[2]).replace(/^(alolan|galarian|hisuian|paldean)(?=-|$)/,x=>inverse[x]||x);
+  return suffix==='standard'?root:root+'-'+suffix;
+ }
+ const key=speciesKey(raw);
+ // Support "Hisuian Growlithe" and "Growlithe Hisuian", alongside API IDs.
+ const prefix=key.match(/^(alolan|galarian|hisuian|paldean)-(.+)$/);
+ if(prefix)return prefix[2]+'-'+inverse[prefix[1]];
+ const suffix=key.match(/^(.+)-(alolan|galarian|hisuian|paldean)$/);
+ if(suffix)return suffix[1]+'-'+inverse[suffix[2]];
+ return key;
 }
 export function moveKey(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
 export function readableForm(name,base){
@@ -42,10 +49,28 @@ export function readableForm(name,base){
 export function isGimmickVariety(name){
  return EXCLUDED.test(speciesKey(name));
 }
+// Abort requests and settle the lookup even if a fetch implementation ignores abort.
+export async function fetchPokeApi(url,fetchFn=fetch,timeoutMs=9000){
+ const controller=new AbortController();
+ let timer;
+ try{
+  return await Promise.race([
+   Promise.resolve().then(()=>fetchFn(url,{signal:controller.signal})),
+   new Promise((_,reject)=>{timer=setTimeout(()=>{
+    controller.abort();
+    reject(Error('PokéAPI took too long to respond. Please try again.'));
+   },timeoutMs)})
+  ]);
+ }catch(error){
+  if(error?.message?.startsWith('PokéAPI took too long'))throw error;
+  if(error?.name==='AbortError')throw Error('PokéAPI request timed out. Please try again.');
+  throw Error('Cannot reach PokéAPI. Check your connection and try again.');
+ }finally{clearTimeout(timer)}
+}
 export async function discoverPokemonForms(base, fetchFn=fetch){
  const root=speciesKey(base);
  if(!/^[a-z0-9-]{2,100}$/.test(root))return [];
- const r=await fetchFn('https://pokeapi.co/api/v2/pokemon-species/'+encodeURIComponent(root)+'/');
+ const r=await fetchPokeApi('https://pokeapi.co/api/v2/pokemon-species/'+encodeURIComponent(root)+'/',fetchFn);
  if(!r.ok)throw Error('Could not load official forms for '+root+'.');
  const species=await r.json();
  const varieties=(species.varieties||[]).map(v=>({name:speciesKey(v.pokemon?.name),default:Boolean(v.is_default)}))
@@ -53,7 +78,7 @@ export async function discoverPokemonForms(base, fetchFn=fetch){
  const results=await Promise.all(varieties.map(async v=>{
   if(v.default||v.name===root)return {id:v.name,label:readableForm(v.name,root)};
   try{
-   const form=await fetchFn('https://pokeapi.co/api/v2/pokemon-form/'+encodeURIComponent(v.name)+'/');
+   const form=await fetchPokeApi('https://pokeapi.co/api/v2/pokemon-form/'+encodeURIComponent(v.name)+'/',fetchFn);
    if(!form.ok)throw Error('Form metadata unavailable');
    const data=await form.json();
    if(data.is_mega||data.is_battle_only)return null;
