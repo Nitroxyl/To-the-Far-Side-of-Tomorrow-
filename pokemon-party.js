@@ -380,7 +380,7 @@ async function fetchOfficial(name){
   if(found.parentSpeciesKey!==found.speciesKey)
    found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);
   return found;
- })().catch(error=>{apiCache.delete(key);throw error}));
+ })().then(mon=>{if(mon.learnsetIncomplete)apiCache.delete(key);return mon}).catch(error=>{apiCache.delete(key);throw error}));
  return apiCache.get(key);
 }
 function customFrom(x){
