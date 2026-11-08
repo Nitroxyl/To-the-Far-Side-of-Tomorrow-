@@ -7,6 +7,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
+import {discoverPokemonForms,isGimmickVariety,readableForm,speciesKey} from './pokemon-forms-learnsets.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -20,10 +21,10 @@ const option=(value,label,selected)=>`<option value="${esc(value)}"${String(valu
 const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
-const apiCache=new Map(),moveCache=new Map();
+const apiCache=new Map(),moveCache=new Map(),speciesFormCache=new Map();
 let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null;
 let roleAllowed=false,accessApproved=false;
-let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},busy=false;
+let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},availableForms=[],formDiscoveryError='',busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -345,18 +346,60 @@ function connect(){
 }
 async function fetchOfficial(name){
  const key=cap(name,70).toLowerCase().replace(/\s+/g,'-');
- if(!/^[a-z0-9-]+$/.test(key))throw Error('Enter a valid Pokémon name, such as riolu or charizard.');
+ if(!/^[a-z0-9-]+$/.test(key)||isGimmickVariety(key))throw Error('Enter a regular Pokémon or permanent form. Mega and other battle transformations are handled separately.');
  if(!apiCache.has(key))apiCache.set(key,fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key)).then(r=>{if(!r.ok)throw Error('PokéAPI could not find '+key);return r.json()}).then(fromPokeApi).catch(e=>{apiCache.delete(key);throw e}));
  return apiCache.get(key);
 }
 function customFrom(x){
  if(!x||!validStats(x.baseStats))throw Error('Custom species has invalid stats.');
- return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:customMoves.map(m=>m.name),spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
+ return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:[],spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
+}
+function formPicker(current){
+ if(current?.source!=='official'||!availableForms.length)return '';
+ const rootKey=current.parentSpeciesKey||current.speciesKey;
+ const entries=availableForms.some(x=>x.id===current.speciesKey)?availableForms:
+  [{id:current.speciesKey,label:readableForm(current.speciesKey,rootKey)},...availableForms];
+ return `<label class="field full">Regional / alternate form
+ <select name="requestSpeciesForm" id="request-form-choice">${entries.map(x=>option(x.id,x.label,current.speciesKey)).join('')}</select>
+ <span class="hint">Choose Alolan, Galarian, Hisuian, Paldean or other permanent forms. Mega and battle-only transformations are excluded.</span></label>`;
+}
+async function loadSpeciesForms(mon){
+ availableForms=[];formDiscoveryError='';
+ if(!mon||mon.source!=='official')return;
+ const rootKey=mon.parentSpeciesKey||mon.speciesKey;
+ if(!speciesFormCache.has(rootKey)){
+  speciesFormCache.set(rootKey,discoverPokemonForms(rootKey).catch(err=>{
+   speciesFormCache.delete(rootKey);throw err;
+  }));
+ }
+ try{availableForms=await speciesFormCache.get(rootKey)}
+ catch(error){
+  formDiscoveryError=error.message||String(error);
+  availableForms=[{id:mon.speciesKey,label:readableForm(mon.speciesKey,rootKey)}];
+ }
 }
 async function findSpecies(value){
  const q=cap(value,90);
  const found=customs.find(x=>q.toLowerCase()===x.name.toLowerCase()||q.toLowerCase()===('custom:'+x.slug));
- return found?customFrom(found):fetchOfficial(q);
+ const mon=found?customFrom(found):await fetchOfficial(q);
+ await loadSpeciesForms(mon);
+ if(mon.source==='official'&&!availableForms.some(x=>x.id===mon.speciesKey))
+  throw Error('This form is a temporary battle transformation; select a regular or regional form instead.');
+ return mon;
+}
+async function changeRequestForm(value){
+ if(!requestDraft||requestDraft.source!=='official')throw Error('Fetch a species before choosing a regional form.');
+ const key=speciesKey(value);
+ if(!availableForms.some(x=>x.id===key))throw Error('This form is not a selectable permanent Pokémon form.');
+ const form=document.getElementById('request-form');
+ const previous={...requestDraft,level:Number(form?.elements.level?.value)||requestDraft.level,
+  nickname:form?.elements.nickname?.value||'',notes:form?.elements.notes?.value||''};
+ const next=await fetchOfficial(key);
+ if((next.parentSpeciesKey||next.speciesKey)!==(previous.parentSpeciesKey||previous.speciesKey))
+  throw Error('The selected variety belongs to a different species.');
+ requestDraft={...previous,...next};
+ say(next.speciesName+' selected. Your request will specify this exact form.');
+ render();
 }
 async function lookupMoves(names){
  const list=names.filter(Boolean).slice(0,4);
@@ -399,6 +442,8 @@ function requestForm(){
  placeholder="e.g. Riolu, Dreepy or a registered custom Pokémon" value="${esc(d.speciesName||'')}">
  <datalist id="request-species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button type="button" class="btn" data-act="request-lookup">Fetch Pokémon stats</button></div>
+ ${formPicker(d)}
+ ${formDiscoveryError?'<p class="hint full">Official form lookup unavailable: '+esc(formDiscoveryError)+'</p>':''}
  <label class="field">Requested level<input type="number" name="level" required min="1" max="100" value="${d.level||5}"></label>
  <label class="field">Nickname (optional)<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
  <label class="field full">Where did you obtain this Pokémon?<textarea name="notes" maxlength="300" placeholder="Mention the quest, location or encounter so the GM can review it.">${esc(d.notes||'')}</textarea></label>
@@ -749,6 +794,10 @@ root.addEventListener('click',async e=>{
  }catch(err){fail(err)}finally{busy=false}
 });
 root.addEventListener('change',e=>{
+ if(e.target.name==='requestSpeciesForm'&&view==='request'){
+  busy=true;changeRequestForm(e.target.value).catch(fail).finally(()=>{busy=false});
+  return;
+ }
  if(e.target.id==='tera-type'&&chosen){
   const mon=pokemon.find(x=>x.id===chosen);
   if(mon)setTeraType(mon,e.target.value).catch(fail);
