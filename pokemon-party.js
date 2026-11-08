@@ -352,7 +352,7 @@ async function fetchOfficial(name){
 }
 function customFrom(x){
  if(!x||!validStats(x.baseStats))throw Error('Custom species has invalid stats.');
- return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:[],spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
+ return {speciesKey:'custom:'+x.slug,speciesName:x.name,baseStats:x.baseStats,types:x.types,abilities:x.abilities,knownMoves:Array.isArray(x.knownMoves)?x.knownMoves:[],spriteUrl:x.spriteUrl||'',spriteData:x.spriteData||'',source:'custom'};
 }
 function formPicker(current){
  if(current?.source!=='official'||!availableForms.length)return '';
