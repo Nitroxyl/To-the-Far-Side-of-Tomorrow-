@@ -45,7 +45,15 @@ The existing custom Pokémon catalogue defaults to an empty ordinary learnset un
 
 **Firebase rules must be published separately from the GitHub pushes.** Copy the [entire latest GM `firestore.rules` file](https://github.com/Nitroxyl/To-the-Far-Side-of-Tomorrow-GM-Edition/blob/main/firestore.rules) to Firebase Console → Firestore Database → Rules → Publish. This enables saving the new learnset metadata.
 
-No independent combat engine, damage calculator or automation has been added. Move learning remains based on the Pokémon's general PokéAPI moves list across games, not an inferred Santara level-by-level progression or per-generation legality check. The GM still decides appropriate moves for a given level.
+No independent combat engine, damage calculator or automation has been added. Official moves now come from the exact form's **game-specific PokéAPI learnset**, not a union of every historical TM. Scarlet/Violet is preferred if available; otherwise an older compatible game is selected. The GM still determines which moves are appropriate for a given level.
 
 ## Checks
 Mocked PokéAPI lookups cover Growlithe/Hisuian Growlithe, alternate default forms such as Aegislash-Shield, the exclusion of temporary Mega and battle-only forms, per-variety official learnsets and explicit custom-move eligibility. The actual GM Save method rejects an invalid hand-typed Infernal Sweep for Growlithe and accepts it when Mega Charizard Z is assigned to Charizard. Live Firebase publishing and browser interaction still need checking on the deployed sites.
+
+
+## Form-specific TM compatibility (2026-11-09)
+
+- Normal and regional forms have separate machine/TM compatibility, level-up moves, egg/reminder moves, and tutor moves for the selected game version.
+- The GM move suggestions show the source method (such as TM, Level-up or Egg/reminder). The editor and save validation use the same filtered list.
+- No Firebase rules, stored Pokémon records or custom move eligibility data are changed. Previously saved Pokémon are not silently edited; re-open them to check legality and save changes normally.
+- Tests cover normal vs. Hisuian Growlithe, older generation exclusion and supported-version fallback.
