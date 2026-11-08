@@ -347,7 +347,7 @@ function connect(){
 async function fetchOfficial(name){
  const key=cap(name,70).toLowerCase().replace(/\s+/g,'-');
  if(!/^[a-z0-9-]+$/.test(key)||isGimmickVariety(key))throw Error('Enter a regular Pokémon or permanent form. Mega and other battle transformations are handled separately.');
- if(!apiCache.has(key))apiCache.set(key,fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key)).then(r=>{if(!r.ok)throw Error('PokéAPI could not find '+key);return r.json()}).then(fromPokeApi).catch(e=>{apiCache.delete(key);throw e}));
+ if(!apiCache.has(key))apiCache.set(key,fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key)).then(r=>{if(!r.ok)throw Error('PokéAPI could not find '+key);return r.json()}).then(p=>{const found=fromPokeApi(p);if(found.parentSpeciesKey!==found.speciesKey)found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);return found}).catch(e=>{apiCache.delete(key);throw e}));
  return apiCache.get(key);
 }
 function customFrom(x){
