@@ -57,3 +57,11 @@ Mocked PokéAPI lookups cover Growlithe/Hisuian Growlithe, alternate default for
 - The GM move suggestions show the source method (such as TM, Level-up or Egg/reminder). The editor and save validation use the same filtered list.
 - No Firebase rules, stored Pokémon records or custom move eligibility data are changed. Previously saved Pokémon are not silently edited; re-open them to check legality and save changes normally.
 - Tests cover normal vs. Hisuian Growlithe, older generation exclusion and supported-version fallback.
+
+
+## Custom ability eligibility (2026-11-09)
+
+- The Pokémon editor shows only the species/form's natural abilities, plus custom abilities explicitly allowed for its exact species/form key.
+- Custom ability definitions support an Eligible Pokémon species/form IDs allowlist. No list means no ordinary species gains the ability automatically. Custom species can also explicitly list a native ability in their species definition. Mega abilities are applied through their Mega form rather than the ordinary ability selector.
+- Save validation rejects ineligible manually typed abilities. Existing Pokémon records are not silently edited.
+- Publish the complete updated GM `firestore.rules` in Firebase to save allowlists. Legacy ability definitions without the new optional field remain valid.
