@@ -346,8 +346,26 @@ function connect(){
 }
 async function fetchOfficial(name){
  const key=pokemonLookupKey(cap(name,90));
- if(!/^[a-z0-9-]+$/.test(key)||isGimmickVariety(key))throw Error('Enter a regular Pokémon or permanent form. Mega and other battle transformations are handled separately.');
- if(!apiCache.has(key))apiCache.set(key,fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key)).then(r=>{if(!r.ok)throw Error('PokéAPI could not find '+key);return r.json()}).then(p=>{const found=fromPokeApi(p);if(found.parentSpeciesKey!==found.speciesKey)found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);return found}).catch(e=>{apiCache.delete(key);throw e}));
+ if(!/^[a-z0-9-]+$/.test(key)||isGimmickVariety(key))
+  throw Error('Enter a regular Pokémon or permanent form. Mega and other battle transformations are handled separately.');
+ if(!apiCache.has(key))apiCache.set(key,(async()=>{
+  let result=await fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key));
+  // PokéAPI has default forms like Aegislash-Shield rather than pokemon/aegislash.
+  if(!result.ok&&result.status===404){
+   const speciesResponse=await fetch('https://pokeapi.co/api/v2/pokemon-species/'+encodeURIComponent(key));
+   if(speciesResponse.ok){
+    const species=await speciesResponse.json();
+    const selected=species.varieties?.find(v=>v.is_default)?.pokemon?.name;
+    if(selected&&!isGimmickVariety(selected))
+     result=await fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(selected));
+   }
+  }
+  if(!result.ok)throw Error('PokéAPI could not find '+key);
+  const p=await result.json(),found=fromPokeApi(p);
+  if(found.parentSpeciesKey!==found.speciesKey)
+   found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);
+  return found;
+ })().catch(error=>{apiCache.delete(key);throw error}));
  return apiCache.get(key);
 }
 function customFrom(x){
