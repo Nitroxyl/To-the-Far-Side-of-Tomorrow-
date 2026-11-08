@@ -123,6 +123,43 @@ export function customMoveEligible(move,mon,megaSlug=''){
  if(scope.requiredMegaSlug&&scope.requiredMegaSlug!==speciesKey(megaSlug||mon.megaForm?.slug))return false;
  return true;
 }
+
+export const LEARNSET_GAME_PRIORITY=Object.freeze([
+ 'scarlet-violet','sword-shield','brilliant-diamond-and-shining-pearl','legends-arceus',
+ 'ultra-sun-ultra-moon','sun-moon','omega-ruby-alpha-sapphire','x-y','black-2-white-2',
+ 'black-white','heartgold-soulsilver','platinum','diamond-pearl','emerald',
+ 'firered-leafgreen','ruby-sapphire','crystal','gold-silver','yellow','red-blue'
+]);
+export function officialMoveCatalog(pokemon,preferredGame=''){
+ // Machine, level-up, egg and tutor moves are scoped to the exact form and game.
+ const entries=Array.isArray(pokemon?.moves)?pokemon.moves:[];
+ const versions=new Set();
+ for(const item of entries)for(const detail of item?.version_group_details||[]){
+  if(detail?.version_group?.name)versions.add(detail.version_group.name);
+ }
+ const pref=speciesKey(preferredGame);
+ const versionGroup=(pref&&versions.has(pref)?pref:null)
+  ||LEARNSET_GAME_PRIORITY.find(v=>versions.has(v))
+  ||[...versions].sort().at(-1)||'';
+ const methods=new Map();
+ if(versionGroup)for(const item of entries){
+  const key=moveKey(item?.move?.name);
+  if(!key)continue;
+  for(const detail of item?.version_group_details||[]){
+   if(detail?.version_group?.name!==versionGroup)continue;
+   if(!methods.has(key))methods.set(key,new Set());
+   methods.get(key).add(detail?.move_learn_method?.name||'unknown');
+  }
+ }
+ return {versionGroup,knownMoves:[...methods.keys()].sort(),
+  moveMethods:Object.fromEntries([...methods].map(([k,v])=>[k,[...v].sort()])),
+  tmMoves:[...methods].filter(([k,v])=>v.has('machine')).map(([k])=>k).sort()};
+}
+export function officialMoveSource(mon,name){
+ const dict={'machine':'TM','level-up':'Level-up','egg':'Egg/reminder','tutor':'Tutor','evolution':'Evolution'};
+ return (mon?.moveMethods?.[moveKey(name)]||[]).map(method=>dict[method]||method).join(' · ');
+}
+
 export function officialLearnset(mon){
  return (Array.isArray(mon?.knownMoves)?mon.knownMoves:[]).map(moveKey).filter(Boolean);
 }
