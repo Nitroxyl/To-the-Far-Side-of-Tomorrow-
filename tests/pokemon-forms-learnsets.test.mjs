@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const files=['pokemon-forms-learnsets.js','pokemon-math.js'];
 const [mod,math]=files.map(p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'));
 const api=new Function(mod.replace(/^export /gm,'')+math.replace(/^export /gm,'')+
- '\nreturn {customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
+ '\nreturn {officialFamilyMoveCatalog,historicalMoveCatalog,preEvolutionVariety,customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
 const {
- customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
+ officialFamilyMoveCatalog,historicalMoveCatalog,preEvolutionVariety,customAbilityScope,validCustomAbilityScope,customAbilityEligible,eligibleAbilityNames,legalAbility,officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
  customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi
 }=api;
 function mockApi(url){
@@ -167,4 +167,65 @@ test('GM assignment filters and validates custom abilities',()=>{
  const text=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
  assert.match(text,/eligibleAbilityNames\(d,customAbilities\)/);
  assert.match(text,/legalAbility\(selectedAbility,abilityMon,customAbilities\)/);
+});
+
+test('Historical Staraptor moves retain Roost learned in BDSP and Legends Arceus',()=>{
+ const catalog=historicalMoveCatalog({name:'staraptor',moves:[
+  fakeLearnMove('brave-bird',[['scarlet-violet','level-up']]),
+  fakeLearnMove('roost',[['brilliant-diamond-and-shining-pearl','machine'],['legends-arceus','level-up']])
+ ]});
+ assert.ok(catalog.knownMoves.includes('roost'));
+ assert.ok(catalog.tmMoves.includes('roost'));
+ assert.equal(legalMove('Roost',{speciesKey:'staraptor',knownMoves:catalog.knownMoves},[]),true);
+});
+test('Hisuian Arcanine gets Head Smash through the matching Hisuian Growlithe line',async()=>{
+ const resources={
+  'pokemon-species/arcanine':{name:'arcanine',evolves_from_species:{name:'growlithe'}},
+  'pokemon-species/growlithe':{name:'growlithe',evolves_from_species:null,varieties:[
+   {is_default:true,pokemon:{name:'growlithe'}},
+   {is_default:false,pokemon:{name:'growlithe-hisui'}}
+  ]},
+  'pokemon/growlithe-hisui':{name:'growlithe-hisui',species:{name:'growlithe'},moves:[
+   fakeLearnMove('head-smash',[['scarlet-violet','egg']])
+  ]},
+  'pokemon/growlithe':{name:'growlithe',species:{name:'growlithe'},moves:[
+   fakeLearnMove('flame-wheel',[['scarlet-violet','level-up']])
+  ]}
+ };
+ const fetchFn=async url=>{
+  const key=url.replace('https://pokeapi.co/api/v2/','').replace(/\/$/,'');
+  if(!resources[key])throw Error('Unexpected request '+key);
+  return {ok:true,json:async()=>resources[key]};
+ };
+ const hisui=await officialFamilyMoveCatalog({
+  name:'arcanine-hisui',species:{name:'arcanine'},moves:[
+   fakeLearnMove('rock-slide',[['scarlet-violet','machine']])
+  ]},fetchFn);
+ const normal=await officialFamilyMoveCatalog({
+  name:'arcanine',species:{name:'arcanine'},moves:[
+   fakeLearnMove('extreme-speed',[['scarlet-violet','level-up']])
+  ]},fetchFn);
+ assert.equal(hisui.incomplete,false);
+ assert.deepEqual(hisui.inheritedFrom,['growlithe-hisui']);
+ assert.ok(hisui.knownMoves.includes('head-smash'));
+ assert.equal(legalMove('Head Smash',{speciesKey:'arcanine-hisui',knownMoves:hisui.knownMoves},[]),true);
+ assert.match(officialMoveSource(hisui,'Head Smash'),/Pre-evo Egg/);
+ assert.deepEqual(normal.inheritedFrom,['growlithe']);
+ assert.ok(!normal.knownMoves.includes('head-smash'));
+});
+test('Regional evolution chains choose exact regional precursors',()=>{
+ const former={name:'growlithe',varieties:[
+  {is_default:true,pokemon:{name:'growlithe'}},
+  {is_default:false,pokemon:{name:'growlithe-hisui'}}
+ ]};
+ assert.equal(preEvolutionVariety('arcanine-hisui',former),'growlithe-hisui');
+ assert.equal(preEvolutionVariety('arcanine',former),'growlithe');
+ assert.equal(preEvolutionVariety('raichu-alola',{name:'pikachu',varieties:[
+  {is_default:true,pokemon:{name:'pikachu'}}
+ ]}),'pikachu');
+});
+test('Both sites use the historical family catalogue instead of only Scarlet/Violet',()=>{
+ const app=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
+ assert.match(app,/await officialFamilyMoveCatalog\(p\)/);
+ assert.match(app,/found\.knownMoves=learns\.knownMoves/);
 });
