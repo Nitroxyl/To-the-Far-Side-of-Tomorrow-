@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const files=['pokemon-forms-learnsets.js','pokemon-math.js'];
 const [mod,math]=files.map(p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'));
 const api=new Function(mod.replace(/^export /gm,'')+math.replace(/^export /gm,'')+
- '\nreturn {discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
+ '\nreturn {fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
 const {
- discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
+ fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
  customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi
 }=api;
 function mockApi(url){
@@ -84,4 +84,22 @@ test('Explicit all-species custom moves are possible but Mega exclusivity cannot
  assert.equal(validCustomMoveScope({allowedSpeciesKeys:['*'],requiredMegaSlug:'mega-charizard-z'}),false);
  const shared={name:'General Move',allowedSpeciesKeys:['*'],requiredMegaSlug:''};
  assert.ok(legalMove('General Move',{speciesKey:'growlithe',knownMoves:[]},[shared],''));
+});
+
+test('Regional form names in normal language resolve to PokéAPI identifiers',()=>{
+ assert.equal(pokemonLookupKey('Hisuian Growlithe'),'growlithe-hisui');
+ assert.equal(pokemonLookupKey('Growlithe Hisuian'),'growlithe-hisui');
+ assert.equal(pokemonLookupKey('Alolan Raichu'),'raichu-alola');
+ assert.equal(pokemonLookupKey('Galarian Mr. Mime'),'mr-mime-galar');
+ assert.equal(pokemonLookupKey('growlithe-hisui'),'growlithe-hisui');
+});
+test('A hanging PokéAPI lookup times out cleanly',async()=>{
+ await assert.rejects(fetchPokeApi('https://pokeapi.co/api/v2/pokemon/invalid/',()=>new Promise(()=>{}),15),/too long|timed out/i);
+});
+test('The app imports its lookup normalizer and releases fetch buttons',()=>{
+ const source=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
+ const imports=source.split('\n').find(x=>x.includes("from './pokemon-forms-learnsets.js"));
+ assert.ok(imports.includes('pokemonLookupKey')&&imports.includes('fetchPokeApi'));
+ assert.match(source,/action==='lookup'\|\|action==='request-lookup'/);
+ assert.match(source,/b\.disabled=false/);
 });
