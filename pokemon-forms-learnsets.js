@@ -160,6 +160,31 @@ export function officialMoveSource(mon,name){
  return (mon?.moveMethods?.[moveKey(name)]||[]).map(method=>dict[method]||method).join(' · ');
 }
 
+
+export function customAbilityScope(record){
+ const list=Array.isArray(record?.allowedSpeciesKeys)?record.allowedSpeciesKeys:[];
+ return {allowedSpeciesKeys:list.map(speciesKey).filter(Boolean)};
+}
+export function validCustomAbilityScope(scope){
+ return validCustomMoveScope({allowedSpeciesKeys:scope?.allowedSpeciesKeys,requiredMegaSlug:''});
+}
+export function customAbilityEligible(record,mon){
+ if(!record||!mon?.speciesKey)return false;
+ const keys=customAbilityScope(record).allowedSpeciesKeys;
+ return keys.includes('*')||keys.includes(speciesKey(mon.speciesKey));
+}
+export function eligibleAbilityNames(mon,definitions){
+ const native=Array.isArray(mon?.abilities)?mon.abilities:[];
+ const custom=(definitions||[]).filter(x=>customAbilityEligible(x,mon)).map(x=>x.name);
+ return [...new Map([...native,...custom].filter(Boolean).map(x=>[speciesKey(x),x])).values()];
+}
+export function legalAbility(name,mon,definitions){
+ const key=speciesKey(name);
+ if(!key||!mon?.speciesKey)return false;
+ if((mon.abilities||[]).some(x=>speciesKey(x)===key))return true;
+ return (definitions||[]).some(x=>speciesKey(x.name)===key&&customAbilityEligible(x,mon));
+}
+
 export function officialLearnset(mon){
  return (Array.isArray(mon?.knownMoves)?mon.knownMoves:[]).map(moveKey).filter(Boolean);
 }
