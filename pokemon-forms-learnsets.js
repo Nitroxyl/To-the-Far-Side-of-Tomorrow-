@@ -14,7 +14,12 @@ const PRIOR_SCOPES={
  'faultline-gore':{allowedSpeciesKeys:['custom:carnotremor'],requiredMegaSlug:''}
 };
 export const LEGACY_MOVE_SCOPES=PRIOR_SCOPES;
-export function speciesKey(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,'-');}
+export function speciesKey(value){
+ return String(value||'').trim().toLowerCase().normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/♀/g,'-f').replace(/♂/g,'-m')
+  .replace(/['’]/g,'').replace(/[^a-z0-9*:]+/g,'-')
+  .replace(/-+/g,'-').replace(/^-|-$/g,'');
+}
 export function pokemonLookupKey(value){
  const raw=String(value||'').trim();
  const paren=raw.match(/^(.+?)\s*\(([^)]+)\)$/);
