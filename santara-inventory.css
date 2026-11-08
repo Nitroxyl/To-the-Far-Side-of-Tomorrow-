@@ -24,3 +24,5 @@
 .bag-teach .hint{margin:0 0 12px}
 .bag-notice{border-left:3px solid var(--gold);padding:8px 14px;background:#263342;border-radius:7px;color:var(--muted);font-size:13px;margin-bottom:17px}
 @media(max-width:760px){.bag-grid{grid-template-columns:1fr}.bag-select{max-width:none;width:100%}}
+
+[hidden]{display:none!important}
