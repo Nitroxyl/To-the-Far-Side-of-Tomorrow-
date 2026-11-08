@@ -56,7 +56,7 @@ export function fromPokeApi(p){
   specialAttack:s['special-attack'],specialDefense:s['special-defense'],speed:s.speed};
  if(!validStats(baseStats))throw Error('PokéAPI returned incomplete base stats.');
  return {
-  speciesKey:p.name,speciesName:p.name.split('-').map(x=>x[0].toUpperCase()+x.slice(1)).join(' '),
+  speciesKey:p.name,parentSpeciesKey:p.species?.name||p.name,speciesName:p.name.split('-').map(x=>x[0].toUpperCase()+x.slice(1)).join(' '),
   baseStats,types:(p.types||[]).sort((a,b)=>a.slot-b.slot).map(x=>x.type.name),
   abilities:(p.abilities||[]).map(x=>x.ability.name),
   knownMoves:(p.moves||[]).map(x=>x.move.name),
