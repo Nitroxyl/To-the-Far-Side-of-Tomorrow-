@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const files=['pokemon-forms-learnsets.js','pokemon-math.js'];
 const [mod,math]=files.map(p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'));
 const api=new Function(mod.replace(/^export /gm,'')+math.replace(/^export /gm,'')+
- '\nreturn {fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
+ '\nreturn {officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi};')();
 const {
- fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
+ officialMoveCatalog,officialMoveSource,fetchPokeApi,discoverPokemonForms,pokemonLookupKey,readableForm,isGimmickVariety,
  customMoveScope,customMoveEligible,legalMove,eligibleMoveNames,validCustomMoveScope,fromPokeApi
 }=api;
 function mockApi(url){
@@ -102,4 +102,38 @@ test('The app imports its lookup normalizer and releases fetch buttons',()=>{
  assert.ok(imports.includes('pokemonLookupKey')&&imports.includes('fetchPokeApi'));
  assert.match(source,/action==='lookup'\|\|action==='request-lookup'/);
  assert.match(source,/b\.disabled=false/);
+});
+
+function fakeLearnMove(name,details){
+ return {move:{name},version_group_details:details.map(([version,method])=>({
+  version_group:{name:version},move_learn_method:{name:method},level_learned_at:0}))};
+}
+test('Regular and Hisuian Growlithe keep distinct modern TM lists',()=>{
+ const n=officialMoveCatalog({moves:[
+  fakeLearnMove('play-rough',[['scarlet-violet','machine']]),
+  fakeLearnMove('hidden-power',[['ultra-sun-ultra-moon','machine']]),
+  fakeLearnMove('flame-wheel',[['scarlet-violet','level-up']])
+ ]});
+ const h=officialMoveCatalog({moves:[
+  fakeLearnMove('rock-slide',[['scarlet-violet','machine']]),
+  fakeLearnMove('stealth-rock',[['scarlet-violet','machine']])
+ ]});
+ assert.equal(n.versionGroup,'scarlet-violet');
+ assert.equal(h.versionGroup,'scarlet-violet');
+ assert.deepEqual(n.knownMoves,['flame-wheel','play-rough']);
+ assert.deepEqual(h.tmMoves,['rock-slide','stealth-rock']);
+ assert.ok(!n.knownMoves.includes('hidden-power'));
+ assert.ok(!h.knownMoves.includes('play-rough'));
+ assert.equal(officialMoveSource({moveMethods:h.moveMethods},'Rock Slide'),'TM');
+});
+test('Forms missing Scarlet/Violet use only latest supported game moves',()=>{
+ const x=officialMoveCatalog({moves:[
+  fakeLearnMove('brutal-swing',[['sword-shield','machine']]),
+  fakeLearnMove('cut',[['red-blue','machine']])
+ ]});
+ assert.equal(x.versionGroup,'sword-shield');
+ assert.deepEqual(x.knownMoves,['brutal-swing']);
+});
+test('Moves without version data are not admitted as all-game TMs',()=>{
+ assert.deepEqual(officialMoveCatalog({moves:[{move:{name:'bad'},version_group_details:[]}]}).knownMoves,[]);
 });
