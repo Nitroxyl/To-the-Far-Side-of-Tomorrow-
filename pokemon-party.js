@@ -7,7 +7,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
-import {pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,moveKey} from './pokemon-forms-learnsets.js?v=lookup-recovery-20261109-1';
+import {officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,moveKey} from './pokemon-forms-learnsets.js?v=form-tms-20261109-1';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -363,6 +363,11 @@ async function fetchOfficial(name){
     throw Error('PokéAPI could not load "'+name+'" (HTTP '+result.status+'). Please try again.');
    }
   const p=await result.json(),found=fromPokeApi(p);
+   const learns=officialMoveCatalog(p);
+   found.knownMoves=learns.knownMoves;
+   found.moveMethods=learns.moveMethods;
+   found.learnsetVersionGroup=learns.versionGroup;
+   found.tmMoves=learns.tmMoves;
   if(found.parentSpeciesKey!==found.speciesKey)
    found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);
   return found;
@@ -804,7 +809,7 @@ root.addEventListener('click',async e=>{
   if(action==='edit'&&GM_SITE){
    editingId=b.dataset.id;draft={...pokemon.find(x=>x.id===editingId)};
    if(draft.source==='official'){
-     try {const official=await fetchOfficial(draft.speciesKey);draft.knownMoves=official.knownMoves;draft.abilities=official.abilities}
+     try {const official=await fetchOfficial(draft.speciesKey);draft.knownMoves=official.knownMoves;draft.moveMethods=official.moveMethods;draft.learnsetVersionGroup=official.learnsetVersionGroup;draft.tmMoves=official.tmMoves;draft.abilities=official.abilities}
      catch(e){console.warn('Official move suggestions are temporarily unavailable:',e.message)}
    }
    view='assign';chosen='';render();
