@@ -40,6 +40,8 @@ test('Battle-only and Mega forms never appear in normal species choices',async()
 test('Region and alternative labels round-trip back to a Pokémon API identifier',()=>{
  assert.equal(pokemonLookupKey('Tauros (Paldean Combat Breed)'),'tauros-paldea-combat-breed');
  assert.equal(pokemonLookupKey('Growlithe (Standard)'),'growlithe');
+ assert.equal(pokemonLookupKey("Farfetch'd (Galarian)"),'farfetchd-galar');
+ assert.equal(pokemonLookupKey('Mr. Mime (Galarian)'),'mr-mime-galar');
  assert.equal(readableForm('rotom-wash','rotom'),'Rotom (Wash)');
 });
 test('Regional Pokémon use exact form-specific stats and moves',()=>{
