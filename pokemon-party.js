@@ -7,7 +7,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
-import {discoverPokemonForms,isGimmickVariety,readableForm,speciesKey} from './pokemon-forms-learnsets.js';
+import {discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,pokemonLookupKey} from './pokemon-forms-learnsets.js';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -345,7 +345,7 @@ function connect(){
    },e=>console.warn('Custom species catalogue unavailable:',e.message));
 }
 async function fetchOfficial(name){
- const key=cap(name,70).toLowerCase().replace(/\s+/g,'-');
+ const key=pokemonLookupKey(cap(name,90));
  if(!/^[a-z0-9-]+$/.test(key)||isGimmickVariety(key))throw Error('Enter a regular Pokémon or permanent form. Mega and other battle transformations are handled separately.');
  if(!apiCache.has(key))apiCache.set(key,fetch('https://pokeapi.co/api/v2/pokemon/'+encodeURIComponent(key)).then(r=>{if(!r.ok)throw Error('PokéAPI could not find '+key);return r.json()}).then(p=>{const found=fromPokeApi(p);if(found.parentSpeciesKey!==found.speciesKey)found.speciesName=readableForm(found.speciesKey,found.parentSpeciesKey);return found}).catch(e=>{apiCache.delete(key);throw e}));
  return apiCache.get(key);
