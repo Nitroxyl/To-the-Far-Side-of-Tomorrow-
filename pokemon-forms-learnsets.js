@@ -60,9 +60,12 @@ export async function discoverPokemonForms(base, fetchFn=fetch){
   return {id:v.name,label:readableForm(v.name,root)};
  }));
  const found=results.filter(Boolean);
- if(!found.some(v=>v.id===root))found.unshift({id:root,label:readableForm(root,root)});
+ // Some species have no /pokemon/{species}/ resource: their default record
+ // is instead /pokemon/aegislash-shield, basculin-red-striped, etc.
+ if(!found.length)throw Error('No permanent Pokémon form found for '+root+'.');
+ const defaultId=varieties.find(x=>x.default)?.name||root;
  const seen=new Set();
- return found.filter(x=>!seen.has(x.id)&&seen.add(x.id)).sort((a,b)=>a.id===root?-1:b.id===root?1:a.label.localeCompare(b.label));
+ return found.filter(x=>!seen.has(x.id)&&seen.add(x.id)).sort((a,b)=>a.id===defaultId?-1:b.id===defaultId?1:a.label.localeCompare(b.label));
 }
 export function customMoveScope(record){
  const legacy=PRIOR_SCOPES[moveKey(record?.name||record?.slug)];
