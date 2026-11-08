@@ -7,7 +7,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
-import {discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,pokemonLookupKey} from './pokemon-forms-learnsets.js?v=regional-moves-20261108-2';
+import {discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,pokemonLookupKey,eligibleMoveNames,legalMove,moveKey} from './pokemon-forms-learnsets.js?v=regional-moves-20261108-2';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
@@ -50,14 +50,11 @@ function customAbilityByName(name){
 function registrationMoves(fd){
  const names=Array.from({length:4},(_,i)=>cap(fd.get('move'+(i+1)),48)).filter(Boolean);
  if(names.some(m=>m.includes(',')))throw Error('Enter only one move in each slot.');
- if(new Set(names.map(m=>m.toLowerCase())).size!==names.length)throw Error('A Pokémon cannot know the same move twice.');
+ if(new Set(names.map(moveKey)).size!==names.length)throw Error('A Pokémon cannot know the same move twice.');
  return names;
 }
-function moveOptions(mon){
- const names=[...(mon?.knownMoves||[]).map(n=>String(n).replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())),...customMoves.map(m=>m.name)];
- const used=new Set();
- return names.filter(name=>{const key=String(name).toLowerCase();if(!key||used.has(key))return false;used.add(key);return true})
-   .sort((a,b)=>String(a).localeCompare(String(b))).slice(0,500);
+function moveOptions(mon,megaSlug=''){
+ return eligibleMoveNames(mon,customMoves,megaSlug);
 }
 function copyAssignmentDraft(){
  const form=document.getElementById('assign-form');if(!form)return;
@@ -705,6 +702,11 @@ async function saveAssign(form){
  const level=Number(f.get('level')),slot=Number(f.get('slot'));
  const maxHp=Number(f.get('maxHp')),currentHp=Number(f.get('currentHp'));
  const moves=registrationMoves(f);
+ const official=d.source==='official'?await fetchOfficial(d.speciesKey):null;
+ const selectedForMoves=String(f.get('megaSlug')||'');
+ const validated={...d,knownMoves:official?.knownMoves||[]};
+ const invalid=moves.filter(name=>!legalMove(name,validated,customMoves,selectedForMoves));
+ if(invalid.length)throw Error('Unavailable moves for '+d.speciesName+': '+invalid.join(', '));
  const teraType=String(f.get('teraType')||d.teraType||d.types?.[0]||'normal');
  if(!TYPES.includes(teraType))throw Error('Choose a valid Tera type.');
  const megaSlug=String(f.get('megaSlug')||'');
