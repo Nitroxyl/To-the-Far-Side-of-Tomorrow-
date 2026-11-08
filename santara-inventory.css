@@ -1,0 +1,26 @@
+/* Inventory-only layout additions; inherits Pokémon Party styles */
+.bag-stats{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+.bag-stat{padding:12px 17px;border:1px solid var(--edge);border-radius:13px;background:#132a37}
+.bag-stat strong{display:block;font-size:22px;color:var(--teal)}
+.bag-stat span{font-size:12px;color:var(--muted)}
+.bag-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bag-item{border:1px solid #36566a;border-radius:14px;background:linear-gradient(130deg,#193443,#112634);padding:17px;min-width:0}
+.bag-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bag-name{font-size:17px;font-weight:800;overflow-wrap:anywhere}
+.bag-number{border-radius:9px;background:#254d56;color:#bbf6e5;padding:5px 10px;font-weight:800}
+.bag-kind{display:inline-block;text-transform:uppercase;letter-spacing:1px;font-size:10px;font-weight:800;color:var(--gold);margin:8px 0}
+.bag-desc{color:var(--muted);font-size:13px;margin:3px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.bag-item .actions{margin-top:13px}
+.bag-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 15px}
+.bag-filter .btn.selected{border-color:var(--teal);background:#195047}
+.bag-topline{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:15px}
+.bag-topline h2{margin:0}
+.bag-select{max-width:350px}
+.bag-requests{display:grid;gap:11px}
+.bag-request{border:1px solid #406074;border-radius:13px;padding:15px;background:#102432}
+.bag-request p{font-size:13px;margin:7px 0;color:var(--muted)}
+.bag-teach{border:1px solid #426c79;background:#12313a;border-radius:14px;padding:16px;margin:15px 0}
+.bag-teach h3{margin:0 0 7px}
+.bag-teach .hint{margin:0 0 12px}
+.bag-notice{border-left:3px solid var(--gold);padding:8px 14px;background:#263342;border-radius:7px;color:var(--muted);font-size:13px;margin-bottom:17px}
+@media(max-width:760px){.bag-grid{grid-template-columns:1fr}.bag-select{max-width:none;width:100%}}
