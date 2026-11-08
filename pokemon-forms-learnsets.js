@@ -15,6 +15,16 @@ const PRIOR_SCOPES={
 };
 export const LEGACY_MOVE_SCOPES=PRIOR_SCOPES;
 export function speciesKey(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,'-');}
+export function pokemonLookupKey(value){
+ const raw=String(value||'').trim();
+ const paren=raw.match(/^(.+?)\s*\(([^)]+)\)$/);
+ if(!paren)return speciesKey(raw);
+ const root=speciesKey(paren[1]);
+ let suffix=speciesKey(paren[2]);
+ const inverse={alolan:'alola',galarian:'galar',hisuian:'hisui',paldean:'paldea'};
+ suffix=suffix.replace(/^(alolan|galarian|hisuian|paldean)(?=-|$)/,x=>inverse[x]||x);
+ return suffix==='standard'?root:root+'-'+suffix;
+}
 export function moveKey(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
 export function readableForm(name,base){
  const id=speciesKey(name),parent=speciesKey(base||name);
