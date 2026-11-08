@@ -45,7 +45,7 @@ The existing custom Pokémon catalogue defaults to an empty ordinary learnset un
 
 **Firebase rules must be published separately from the GitHub pushes.** Copy the [entire latest GM `firestore.rules` file](https://github.com/Nitroxyl/To-the-Far-Side-of-Tomorrow-GM-Edition/blob/main/firestore.rules) to Firebase Console → Firestore Database → Rules → Publish. This enables saving the new learnset metadata.
 
-No independent combat engine, damage calculator or automation has been added. Official moves now come from the exact form's **game-specific PokéAPI learnset**, not a union of every historical TM. Scarlet/Violet is preferred if available; otherwise an older compatible game is selected. The GM still determines which moves are appropriate for a given level.
+No independent combat engine, damage calculator or automation has been added. Official moves are now assembled from the exact form's **historical PokéAPI learnsets and compatible pre-evolution line**, so older legitimate moves are available for tabletop play without mixing regular and regional forms. The GM still determines which moves are appropriate for a given level.
 
 ## Checks
 Mocked PokéAPI lookups cover Growlithe/Hisuian Growlithe, alternate default forms such as Aegislash-Shield, the exclusion of temporary Mega and battle-only forms, per-variety official learnsets and explicit custom-move eligibility. The actual GM Save method rejects an invalid hand-typed Infernal Sweep for Growlithe and accepts it when Mega Charizard Z is assigned to Charizard. Live Firebase publishing and browser interaction still need checking on the deployed sites.
@@ -65,3 +65,8 @@ Mocked PokéAPI lookups cover Growlithe/Hisuian Growlithe, alternate default for
 - Custom ability definitions support an Eligible Pokémon species/form IDs allowlist. No list means no ordinary species gains the ability automatically. Custom species can also explicitly list a native ability in their species definition. Mega abilities are applied through their Mega form rather than the ordinary ability selector.
 - Save validation rejects ineligible manually typed abilities. Existing Pokémon records are not silently edited.
 - Publish the complete updated GM `firestore.rules` in Firebase to save allowlists. Legacy ability definitions without the new optional field remain valid.
+
+
+## Campaign-wide historical and inherited learnsets (2026-11-09)
+
+**Current behavior:** The GM and Player Pokémon lookup now includes official moves from any game generation **for the exact variety**, rather than restricting to Scarlet/Violet. The lookup also follows the Pokémon's pre-evolution chain and prefers the matching regional form, such as `arcanine-hisui` → `growlithe-hisui`, without borrowing egg moves from standard Growlithe. This restores Head Smash for Hisuian Arcanine (inherited Egg Move) and Roost for Staraptor (BDSP TM / Legends: Arceus level-up). Mega-exclusive and other custom move allowlists remain unchanged. The GM determines when a Pokémon has earned a move; this broader tabletop catalogue is not intended as proof a move is legal in a particular competitive game or can be transferred between games. No Firestore data migration or security-rule update is necessary.
