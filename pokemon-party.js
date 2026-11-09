@@ -1,8 +1,9 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,runTransaction,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {statKeys,statLabels,validStats,maxHpV53,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=santara-grid-moves-20261109-1';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
+import {memoryKey,displayMoveName,uniqueMoves,eligibleLevelMoves,mergeMoveMemory,removeMoveMemory,validEquippedMoves,moveSourceName,MOVE_SOURCES} from './pokemon-move-memory.js?v=move-memory-20261109-1';
 import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
@@ -23,8 +24,9 @@ const opts=(values,selected)=>values.map(v=>option(v,v,selected)).join('');
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map(),speciesFormCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null,stopMoveMemory=null;
 let roleAllowed=false,accessApproved=false;
+let moveMemories={},activeMoveCatalog=null,moveCatalogError='';
 let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},availableForms=[],formDiscoveryError='',busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
@@ -279,8 +281,8 @@ function updateMegaProjection(){
 function stop(){
  roleAllowed=false;accessApproved=false;
  mirrorDesired.clear();mirrorLast.clear();
- [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole,stopMegaAssignments].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=stopMegaAssignments=null;rawPokemon=[];megaAssignments={};pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole,stopMegaAssignments,stopMoveMemory].forEach(fn=>fn?.());
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=stopMegaAssignments=stopMoveMemory=null;rawPokemon=[];megaAssignments={};moveMemories={};activeMoveCatalog=null;moveCatalogError='';pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -306,6 +308,14 @@ function connect(){
   }
  );
 
+ stopMoveMemory=onSnapshot(
+  GM_SITE?collection(store,'santara_pokemon_move_memory'):
+   query(collection(store,'santara_pokemon_move_memory'),where('ownerUid','==',user.uid)),
+  snap=>{
+   moveMemories=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
+   if(view==='move-memory')render();
+  },err=>{console.warn('Move Memory unavailable:',err.message);if(view==='move-memory')say('Move Memory cannot load. Your GM must publish the latest Firebase rules.')}
+ );
  stopGimmicks=onSnapshot(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
    if(GM_SITE)trainerUnlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
    else playerUnlocks=snap.exists()?snap.data():initialUnlocks();
@@ -374,6 +384,7 @@ async function fetchOfficial(name){
    const learns=await officialFamilyMoveCatalog(p);
    found.knownMoves=learns.knownMoves;
    found.moveMethods=learns.moveMethods;
+    found.levelUpLevels=learns.levelUpLevels;
    found.learnsetVersionGroup=learns.versionGroup;
    found.tmMoves=learns.tmMoves;
    found.inheritedFrom=learns.inheritedFrom;
@@ -579,7 +590,7 @@ function detail(m){
  <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p><p class="hint">Grid movement: <b>${d.movementSquares} squares per turn</b> (${d.movementFeet} ft). 1 square = 5 ft. D&D grid encounters only; major Doubles battles use standard Pokémon targeting.</p>
  <div class="stats-grid"><div class="stat"><b>${d.movementSquares}</b><small>Grid movement · squares</small></div><div class="stat"><b>${d.dndLevel}/20</b><small>D&D level</small></div><div class="stat"><b>+${d.proficiencyBonus}</b><small>Proficiency / attacks</small></div><div class="stat"><b>${mul(d.levelDamageMultiplier)}</b><small>Level damage</small></div><div class="stat"><b>${d.universalAC}</b><small>Universal AC (V5.3)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.levelledPhysicalOffenseMultiplier)}</b><small>Physical offense × level</small></div><div class="stat"><b>${mul(d.levelledSpecialOffenseMultiplier)}</b><small>Special offense × level</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
  <p class="flag">V5.3: damage dice × offense × level (${mul(d.levelDamageMultiplier)}) × STAB × type effectiveness × defense. Attack rolls add proficiency (+${d.proficiencyBonus}); ${d.acOverridden?'GM-set universal AC '+d.universalAC:'universal AC '+d.universalAC+' = 11 + PB'}. The original V5.2 stat tiers are unchanged.</p>${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV53(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from the V5.3 suggested '+maxHpV53(m.baseStats,m.level)+'. A GM can recalculate HP in Edit Pokémon; existing overrides are kept until saved.</p>':''}
- <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
+ <div class="actions"><button type="button" class="btn primary" data-act="manage-moves">Manage Moves / Remember Moves</button></div><div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
   const info=moveInfo[name],special=customMoveByName(name);
   const cls=info?.classification||classifyMove(name,special||null);
   const tags=classificationLabels(cls).map(label=>`<span class="move-class">${esc(label)}</span>`).join('');
@@ -710,11 +721,11 @@ function render(){
  if(view==='request'){root.innerHTML=requestForm();return}
  if(!collectionReady){root.innerHTML=collectionError?`<section class="panel"><h2>Pokémon collection could not load</h2><p>${esc(collectionError)}</p><p>Firestore has not granted access to the Pokémon collection. The GM must publish the latest <b>firestore.rules</b> from the GM repository in the Firebase Console. Refresh after the rules are live.</p><a class="btn" href="./index.html">Return to Fieldwork</a></section>`:'<section class="panel"><p>Loading Pokémon records…</p></section>';return}
  const mon=pokemon.find(m=>m.id===chosen);
- root.innerHTML=mon?detail(mon):listView();
+ root.innerHTML=mon?(view==='move-memory'?moveMemoryView(mon):detail(mon)):listView();
 }
 function clearSelection(){chosen='';editingId='';draft=null;requestDraft=null;activeRequestId='';returnToAssign=false;editingMega=null;megaImported=false;view='party';render()}
 async function selectMon(id){
- chosen=id;const m=pokemon.find(x=>x.id===id);
+ chosen=id;activeMoveCatalog=null;moveCatalogError='';const m=pokemon.find(x=>x.id===id);
  if(m){moveInfo={};await lookupMoves(m.moves||[]);render()}
 }
 async function imgToWebp(file) {
@@ -936,15 +947,15 @@ try{
  if(!config?.projectId)throw Error('Firebase configuration is missing.');
  app=getApps().length?getApp():initializeApp(config);auth=getAuth(app);store=getFirestore(app);
  function disconnectManagedData(){
- for(const key of ['stopPokemon','stopGimmicks','stopMegaForms','stopRules','stopRequests','stopApprovals','stopCards','stopMoves','stopAbilities','stopCustoms']){
+ for(const key of ['stopPokemon','stopGimmicks','stopMegaForms','stopRules','stopRequests','stopApprovals','stopCards','stopMoves','stopAbilities','stopCustoms','stopMoveMemory']){
   // Stop active subscriptions; the user's authenticated role subscription remains live.
   const fn=({
    stopPokemon,stopGimmicks,stopMegaForms,stopRules,stopRequests,
-   stopApprovals,stopCards,stopMoves,stopAbilities,stopCustoms
+   stopApprovals,stopCards,stopMoves,stopAbilities,stopCustoms,stopMoveMemory
   })[key];
   fn?.();
  }
- stopPokemon=stopGimmicks=stopMegaForms=stopRules=stopRequests=stopApprovals=stopCards=stopMoves=stopAbilities=stopCustoms=null;
+ stopPokemon=stopGimmicks=stopMegaForms=stopRules=stopRequests=stopApprovals=stopCards=stopMoves=stopAbilities=stopCustoms=stopMoveMemory=null;moveMemories={};
  pokemon=[];trainers=[];collectionReady=false;
 }
 function reconcileAccess(){
