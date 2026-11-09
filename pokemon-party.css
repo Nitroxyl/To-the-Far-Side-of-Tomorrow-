@@ -35,3 +35,14 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 .trait-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:11px;border:1px solid #345467;background:#0d2030;border-radius:12px}
 .trait-choices label{display:flex;gap:7px;align-items:center;color:var(--text);font-size:13px;font-weight:500}
 .trait-choices input{margin:0;width:17px;height:17px}
+
+/* Player Move Memory + GM move permissions */
+.memory-move-list{display:flex;flex-direction:column;gap:8px;margin:12px 0 20px}
+.memory-move-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #385766;border-radius:11px;padding:10px 12px;background:#112937}
+.memory-move-row b{font-size:14px}
+.memory-move-row .hint{font-weight:500;font-size:12px}
+.memory-gm-panel{background:#112e39;border:1px solid #39707a;border-radius:14px;padding:16px;margin-top:20px}
+.memory-gm-panel h3{margin-bottom:8px}
+#memory-slots-form{margin:16px 0 24px}
+#memory-slots-form .actions,.memory-gm-panel .actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+@media(max-width:650px){.memory-move-row{align-items:flex-start}}
