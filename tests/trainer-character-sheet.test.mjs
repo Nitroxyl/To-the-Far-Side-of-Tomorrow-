@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import {readFileSync} from 'node:fs';
+const code=readFileSync(new URL('../trainer-character-sheet.js',import.meta.url),'utf8');
+const {
  blankTrainerSheet,normalizeTrainerSheet,validateTrainerSheet,sheetComplete,
  renderTrainerSheetEditor,renderTrainerSheetViewer
-} from '../trainer-character-sheet.js';
+}=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(code));
 
 test('new trainers start with an editable, unfinished sheet',()=>{
  const draft=blankTrainerSheet();
