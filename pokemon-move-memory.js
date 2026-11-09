@@ -5,6 +5,14 @@ export const MOVE_SOURCES=Object.freeze(['legacy','level-up','tm','egg','tutor',
 export function memoryKey(name){
  return String(name||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 }
+export function displayMoveName(key){
+ const id=String(key||'').trim().toLowerCase();
+ const exceptions={'u-turn':'U-turn','will-o-wisp':'Will-O-Wisp','x-scissor':'X-Scissor',
+ 'double-edge':'Double-Edge','v-create':'V-create','freeze-dry':'Freeze-Dry',
+ 'trick-or-treat':'Trick-or-Treat','baby-doll-eyes':'Baby-Doll Eyes',
+ 'topsy-turvy':'Topsy-Turvy','power-up-punch':'Power-Up Punch'};
+ return exceptions[id]||id.split('-').filter(Boolean).map(part=>part[0].toUpperCase()+part.slice(1)).join(' ');
+}
 export function validMoveName(name){
  return typeof name==='string'&&name.trim().length>0&&name.length<=48&&memoryKey(name).length>0;
 }
