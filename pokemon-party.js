@@ -581,6 +581,43 @@ function listView(){
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
  ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.3 battle progression</h3><p>Every five Pokémon levels grant one D&D level. V5.3 adds scaled HP, level damage and proficiency-based AC while retaining the V5.2 offense/defense stat tiers. Optional table and AC overrides still work.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom offense/defense settings loaded.':'Default V5.2 stat tier multipliers are active.'}</p></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
 }
+
+function moveMemoryView(mon){
+ const memory=moveMemories[mon.id];
+ const equipped=Array.isArray(mon.moves)?mon.moves:[];
+ const unlocked=memory?uniqueMoves(memory.unlockedMoves):[];
+ const unlockedIds=new Set(unlocked.map(memoryKey));
+ const selected=uniqueMoves([...unlocked,...equipped]);
+ const cat=activeMoveCatalog?.speciesKey===mon.speciesKey?activeMoveCatalog:null;
+ const levelEntries=Object.entries(cat?.levelUpLevels||{}).filter(([id,min])=>
+  Number(min)<=Number(mon.level)&&!unlockedIds.has(memoryKey(id)));
+ const suggested=[...new Set([...(cat?.knownMoves||[]).map(displayMoveName),...customMoves.map(c=>c.name),...equipped])];
+ const rows=unlocked.map(name=>{
+  const source=memory?.sources?.[memoryKey(name)]||'legacy';
+  const equippedNow=equipped.some(x=>memoryKey(x)===memoryKey(name));
+  return `<div class="memory-move-row"><div><b>${esc(name)}</b> <span class="hint">${esc(moveSourceName(source))}${equippedNow?' · Equipped':''}</span></div>${GM_SITE?`<button type="button" class="btn small danger" data-act="revoke-memory" data-move="${esc(name)}">Revoke</button>`:''}</div>`;
+ }).join('');
+ return `<section class="panel"><div class="toolbar"><h2>Move Memory — ${esc(mon.nickname||mon.speciesName)}</h2><button class="btn" type="button" data-act="memory-back">← Back to Pokémon</button></div>
+ <p>Choose up to four unlocked moves. Moves can be swapped outside combat without using a TM again. Your GM unlocks Egg, tutor and first-time TM moves.</p>
+ ${!memory?'<p class="hint">Preparing this Pokémon’s Move Memory. If this stays empty, ask the GM to publish the updated Firebase rules.</p>':''}
+ <form id="memory-slots-form" class="form-grid">
+ ${Array.from({length:4},(_,i)=>`<label class="field">Active move ${i+1}<select name="memorySlot${i+1}" ${!memory?'disabled':''}>${option('','Empty slot',equipped[i]||'')}${selected.map(name=>option(name,name,equipped[i]||'')).join('')}</select></label>`).join('')}
+ <div class="actions"><button class="btn primary" type="submit" ${!memory?'disabled':''}>Save equipped moves</button></div></form>
+ <h3>Unlocked techniques · ${unlocked.length}</h3>
+ <div class="memory-move-list">${rows||'<p class="hint">No moves unlocked yet. Existing GM-assigned moves are imported when Move Memory opens.</p>'}</div>
+ ${cat?`<h3>Level-up moves awaiting unlock · ${levelEntries.length}</h3><p class="hint">${levelEntries.length?levelEntries.slice(0,40).map(([id,min])=>esc(displayMoveName(id))+' (Lv. '+min+')').join(' · '):'No additional reached-level moves are pending.'} ${levelEntries.length>40?'…':''}</p>`:''}
+ ${moveCatalogError?`<p class="hint">Official learnset temporarily unavailable: ${esc(moveCatalogError)}. Already unlocked moves are still usable.</p>`:''}
+ ${GM_SITE?`<div class="memory-gm-panel"><h3>GM: grant or revoke move access</h3>
+ <p>Unlocks appear immediately in the Trainer’s Move Memory. Egg training and tutors require your approval; the selected source records how the move was obtained. Grants do not automatically equip the move.</p>
+ <form id="memory-grant-form" class="form-grid">
+ <label class="field full">Move to unlock<input name="memoryMove" maxlength="48" list="memory-moves-list" required placeholder="Search a level-up, Egg, TM or custom move"></label>
+ <datalist id="memory-moves-list">${suggested.slice(0,650).map(name=>`<option value="${esc(name)}"></option>`).join('')}</datalist>
+ <label class="field">How it was learned<select name="memorySource">${['gm','egg','tutor','tm','evolution','level-up'].map(v=>option(v,moveSourceName(v),v==='gm'?'gm':'')).join('')}</select></label>
+ <div class="actions"><button class="btn primary" type="submit">Unlock move</button><button class="btn" type="button" data-act="sync-level-moves" ${cat?'':'disabled'}>Unlock reached level-up moves</button></div>
+ </form><p class="hint">The GM can grant story exceptions, including custom moves. This does not consume a TM or perform Egg training; handle those requirements before granting.</p></div>`:''}
+ </section>`;
+}
+
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
