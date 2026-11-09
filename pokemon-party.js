@@ -843,11 +843,20 @@ root.addEventListener('click',async e=>{
     busy=true;b.disabled=true;say('Fetching species stats…');
     const input=document.getElementById('species-query');
     const species=await findSpecies(input.value);
+    const previous=draft;
+    const wasSame=Boolean(editingId&&previous?.speciesKey===species.speciesKey);
+    const oldMax=Number(previous?.maxHp)||0;
+    const oldLevel=Number(previous?.level)||5;
+    const oldSuggested=validStats(previous?.baseStats)?maxHpV53(previous.baseStats,oldLevel):0;
+    const preserveOverride=wasSame&&oldMax>0&&oldMax!==oldSuggested;
     draft={...(draft||{}),...species};
     const enteredLevel=Number(document.querySelector('#assign-form [name="level"]')?.value);
     draft.level=Number.isInteger(enteredLevel)&&enteredLevel>=1&&enteredLevel<=100?enteredLevel:5;
-    draft.maxHp=maxHpV53(species.baseStats,draft.level);
-    draft.currentHp=draft.maxHp;
+    const suggestedMax=maxHpV53(species.baseStats,draft.level);
+    draft.maxHp=preserveOverride?oldMax:suggestedMax;
+    draft.currentHp=oldMax>0
+     ?hpAfterMaxChange(previous.currentHp??oldMax,oldMax,draft.maxHp)
+     :draft.maxHp;
     draft.ability=species.abilities?.[0]||'';
     say(`${species.speciesName} imported. Check level, HP, moves and Trainer assignment before saving.`);render();
   }
