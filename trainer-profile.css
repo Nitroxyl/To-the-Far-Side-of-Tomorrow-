@@ -45,8 +45,9 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit}b
 .sheet-skill-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}
 .sheet-skill-choice{display:flex;gap:8px;align-items:center;padding:10px;background:#172b39;border:1px solid #365166;border-radius:9px;font-size:12px;cursor:pointer}
 .sheet-skill-choice input{accent-color:#5fd3bc;width:16px;height:16px;flex-shrink:0}
-.sheet-story-editor{margin-top:13px}
-.sheet-story-editor textarea{min-height:85px}
+.sheet-story-editor{margin-top:13px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px}
+.sheet-story-field{grid-column:auto;min-width:0}
+.sheet-story-field textarea{min-height:78px;height:78px;resize:vertical}
 @media(max-width:650px){
  .sheet-viewer{padding:14px}
  .sheet-view-header{flex-direction:column}
@@ -55,4 +56,5 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit}b
  .sheet-stat strong{font-size:23px}
  .sheet-stat small{font-size:9px}
  .sheet-attribute-editor{grid-template-columns:1fr}
+ .sheet-story-editor{grid-template-columns:1fr}
 }
