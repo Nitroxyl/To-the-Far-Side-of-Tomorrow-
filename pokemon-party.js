@@ -1,7 +1,7 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-import {statKeys,statLabels,validStats,maxHpV4Baseline,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=regional-moves-20261108-2';
+import {statKeys,statLabels,validStats,maxHpV53,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=santara-v53-20261109-1';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
@@ -535,8 +535,8 @@ async function reviewRequest(id){
   :await fetchOfficial(request.speciesKey);
  activeRequestId=request.id;
  editingId='';chosen='';draft={...species,level:request.level,nickname:request.nickname,
-  origin:request.notes,maxHp:maxHpV4Baseline(species.baseStats,request.level),
-  currentHp:maxHpV4Baseline(species.baseStats,request.level),ownerUid:request.ownerUid};
+  origin:request.notes,maxHp:maxHpV53(species.baseStats,request.level),
+  currentHp:maxHpV53(species.baseStats,request.level),ownerUid:request.ownerUid};
  view='assign';render();
  say('Check the requested Pokémon, set its party slot and moves, then click Assign to Trainer.');
 }
@@ -562,17 +562,17 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.2 calculations</h3><p>Our V5.2 offense and defense multipliers are already included. You can override the table or set a fixed AC if needed.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom V5.2 settings loaded.':'Default V5.2 multipliers are active.'}</p></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.3 battle progression</h3><p>Every five Pokémon levels grant one D&D level. V5.3 adds scaled HP, level damage and proficiency-based AC while retaining the V5.2 offense/defense stat tiers. Optional table and AC overrides still work.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom offense/defense settings loaded.':'Default V5.2 stat tier multipliers are active.'}</p></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
 }
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
- <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
+ <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> <span class="chip">D&D Lv. ${d.dndLevel}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
- <div class="stats-grid"><div class="stat"><b>${d.universalAC??'11 + PB'}</b><small>Universal AC (V5.2)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
- <p class="flag">V5.2: damage dice × offense × STAB × type effectiveness × defense. AC = 11 + proficiency bonus; any GM override replaces the displayed AC. Tier multipliers are automatic.</p>
+ <div class="stats-grid"><div class="stat"><b>${d.dndLevel}/20</b><small>D&D level</small></div><div class="stat"><b>+${d.proficiencyBonus}</b><small>Proficiency / attacks</small></div><div class="stat"><b>${mul(d.levelDamageMultiplier)}</b><small>Level damage</small></div><div class="stat"><b>${d.universalAC}</b><small>Universal AC (V5.3)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.levelledPhysicalOffenseMultiplier)}</b><small>Physical offense × level</small></div><div class="stat"><b>${mul(d.levelledSpecialOffenseMultiplier)}</b><small>Special offense × level</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
+ <p class="flag">V5.3: damage dice × offense × level (${mul(d.levelDamageMultiplier)}) × STAB × type effectiveness × defense. Attack rolls add proficiency (+${d.proficiencyBonus}); ${d.acOverridden?'GM-set universal AC '+d.universalAC:'universal AC '+d.universalAC+' = 11 + PB'}. The original V5.2 stat tiers are unchanged.</p>${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV53(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from the V5.3 suggested '+maxHpV53(m.baseStats,m.level)+'. A GM can recalculate HP in Edit Pokémon; existing overrides are kept until saved.</p>':''}
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
  const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
@@ -594,7 +594,7 @@ function gmForm(){
  const existing=pokemon.find(m=>m.id===editingId);
  const d=draft||existing||{};
  const level=Number(d.level)||5;
- const defaultHp=validStats(d.baseStats)?maxHpV4Baseline(d.baseStats,level):'';
+ const defaultHp=validStats(d.baseStats)?maxHpV53(d.baseStats,level):'';
  return `<section class="panel"><div class="toolbar"><h2>${existing?'Edit Pokémon':'Assign Pokémon'}</h2><button class="btn" data-act="back">← Cancel</button></div>
  <form id="assign-form" class="form-grid">
  <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
@@ -622,14 +622,14 @@ function gmForm(){
 }
 function rulesForm(){
  const r=battleRules||{};
- return `<section class="panel"><div class="toolbar"><h2>V5.2 combat configuration</h2><button class="btn" data-act="back">← Cancel</button></div>
- <p>Enter the finalized V5.2 values, rather than the superseded V4 formulas. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk uses the 200–249 tier; 250+ is the final tier. The values below are prefilled from our V5.2 table.</p>
+ return `<section class="panel"><div class="toolbar"><h2>V5.3 combat configuration</h2><button class="btn" data-act="back">← Cancel</button></div>
+ <p>V5.3 calculates 1 D&D level per 5 Pokémon levels, proficiency-based AC, and a level damage multiplier automatically. The V5.2 offense/defense tiers remain configurable below. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk uses the 200–249 tier; 250+ is the final tier. The values below are prefilled from our V5.2 table.</p>
  <form id="rules-form" class="form-grid">
- <label class="field">Universal AC<input name="universalAc" type="number" min="1" max="50" placeholder="Enter actual V5.2 value" value="${r.universalAc??''}"></label>
+ <label class="field">Universal AC<input name="universalAc" type="number" min="1" max="50" placeholder="Optional fixed AC override" value="${r.universalAc??''}"></label>
  <label class="field full">Offense multipliers (comma-separated)<textarea name="offenseBands" placeholder="20-point offense tier multipliers">${(r.offenseBands?.length?r.offenseBands:V52_TIERS.map(t=>t.offense)).join(', ')}</textarea></label>
  <label class="field full">Defense multipliers (comma-separated)<textarea name="defenseBands" placeholder="20-point defense tier multipliers">${(r.defenseBands?.length?r.defenseBands:V52_TIERS.map(t=>t.defense)).join(', ')}</textarea></label>
- <p class="hint full">V5.2 defaults are already active for every Pokémon, even before saving. Adjust only if your campaign changes the table. Universal AC = 11 + PB unless you enter a fixed override.</p>
- <div class="actions"><button class="btn primary" type="submit">Save V5.2 combat rules</button></div>
+ <p class="hint full">V5.3 progression is automatic. The V5.2 stat tiers remain active unless overridden here. Universal AC = 11 + level-based proficiency bonus (+2 to +6), unless you enter a fixed override.</p>
+ <div class="actions"><button class="btn primary" type="submit">Save V5.3 combat rules</button></div>
  </form></section>`;
 }
 async function saveRules(form){
@@ -646,7 +646,7 @@ async function saveRules(form){
  await setDoc(doc(store,'santara_battle_rules','v5_2'),{
   universalAc,offenseBands:parse('offenseBands'),defenseBands:parse('defenseBands'),updatedAt:serverTimestamp()
  });
- say('V5.2 combat tables saved for all approved Trainers.');clearSelection();
+ say('V5.3 combat settings saved for all approved Trainers; the V5.2 stat-tier table remains in use.');clearSelection();
 }
 function customForm(){
  return `<section class="panel"><div class="toolbar"><h2>Register a Santara species or custom form</h2><button class="btn" data-act="back">← Cancel</button></div>
@@ -815,7 +815,7 @@ root.addEventListener('click',async e=>{
     draft={...(draft||{}),...species};
     const enteredLevel=Number(document.querySelector('#assign-form [name="level"]')?.value);
     draft.level=Number.isInteger(enteredLevel)&&enteredLevel>=1&&enteredLevel<=100?enteredLevel:5;
-    draft.maxHp=maxHpV4Baseline(species.baseStats,draft.level);
+    draft.maxHp=maxHpV53(species.baseStats,draft.level);
     draft.currentHp=draft.maxHp;
     draft.ability=species.abilities?.[0]||'';
     say(`${species.speciesName} imported. Check level, HP, moves and Trainer assignment before saving.`);render();
@@ -861,7 +861,7 @@ root.addEventListener('change',e=>{
   const level=Number(e.target.value),form=document.getElementById('assign-form');
   if(Number.isInteger(level)&&level>=1&&level<=100&&form){
    const max=form.elements.maxHp,cur=form.elements.currentHp,old=Number(max.value);
-   const newMax=maxHpV4Baseline(draft.baseStats,level);
+   const newMax=maxHpV53(draft.baseStats,level);
    if(old===Number(max.dataset.generated)){if(Number(cur.value)===old)cur.value=newMax;max.value=newMax}
    max.dataset.generated=String(newMax);draft.level=level;
   }
