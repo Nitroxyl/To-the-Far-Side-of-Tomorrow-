@@ -1,6 +1,6 @@
-// Santara battle system V5.2. Damage = dice × offense × STAB × type × defense.
-// Universal AC = 11 + proficiency bonus (PB). PB is determined by the campaign,
-// not inferred from a Pokemon's 1-100 species level.
+// Santara Combat V5.3. The V5.2 stat offense/defense tiers remain unchanged.
+// Damage = dice × offense × level × STAB × type effectiveness × defense.
+// Every five Pokémon levels correspond to one D&D level (maximum 20).
 export const statKeys=['hp','attack','defense','specialAttack','specialDefense','speed'];
 export const statLabels=['HP','Attack','Defense','Sp. Attack','Sp. Defense','Speed'];
 // The final two tiers are deliberately wider than 20 points.
@@ -29,23 +29,62 @@ export function tierMultiplier(v,bands=null,kind='offense'){
  return Array.isArray(bands)&&typeof bands[index]==='number'&&
  Number.isFinite(bands[index])&&bands[index]>0?bands[index]:tier[kind];
 }
-// Retained only as an editable placeholder; the exact V5.2 HP scale may differ.
+// V5.3: D&D progression is calculated from the saved Pokémon level.
+// A full step only occurs every five Pokémon levels, but damage/HP grow
+// smoothly every individual level, avoiding five-level power plateaus.
+function boundedLevel(level){
+ const number=Number(level);
+ return Number.isFinite(number)?Math.min(100,Math.max(1,number)):1;
+}
+export function dndLevel(level){return Math.ceil(boundedLevel(level)/5);}
+export function proficiencyBonus(level){return 2+Math.floor((dndLevel(level)-1)/4);}
+export function levelDamageMultiplier(level){return 1+boundedLevel(level)/100;}
+export function maxHpV53(stats,level){
+ const hp=Number(stats?.hp);
+ if(!Number.isInteger(hp)||hp<1||hp>255)throw Error('A valid Pokémon base HP is required to calculate V5.3 HP.');
+ return Math.floor(8+(4+Math.floor(hp/15))*(1+(boundedLevel(level)-1)/5));
+}
+// Apply the difference in maximum HP, preserving the damage already taken.
+// A fainted Pokémon stays fainted rather than reviving on a level-up.
+export function hpAfterMaxChange(currentHp,oldMax,newMax){
+ const previous=Number(oldMax),next=Number(newMax),current=Number(currentHp);
+ if(!Number.isInteger(next)||next<1||next>3000)throw Error('New maximum HP must be 1–3000.');
+ if(!Number.isFinite(previous)||previous<1) return Math.max(0,Math.min(next,Number.isFinite(current)?current:next));
+ if(!Number.isFinite(current)||current<=0)return 0;
+ return Math.max(0,Math.min(next,Math.round(current+next-previous)));
+}
+
+// Legacy V4 formula retained for migration comparisons, not new assignments.
+
 export function maxHpV4Baseline(stats,level){
  return 6+3*Number(level)+Math.floor(Number(stats.hp)/2);
 }
 export function combatSummary(mon,rules=null){
  const s=mon.baseStats||{},off=rules?.offenseBands,def=rules?.defenseBands;
+ const level=dndLevel(mon.level),pb=proficiencyBonus(mon.level);
+ const levelMultiplier=levelDamageMultiplier(mon.level);
+ const physicalOffense=tierMultiplier(s.attack,off,'offense');
+ const specialOffense=tierMultiplier(s.specialAttack,off,'offense');
+ const acOverride=Number.isInteger(rules?.universalAc)?rules.universalAc:null;
  return {
   hp:mon.maxHp,
+  pokemonLevel:boundedLevel(mon.level),
+  dndLevel:level,
+  proficiencyBonus:pb,
+  levelDamageMultiplier:levelMultiplier,
+  suggestedMaxHp:validStats(s)?maxHpV53(s,mon.level):null,
   physicalOffenseBand:statBand(s.attack),
   specialOffenseBand:statBand(s.specialAttack),
   physicalDefenseBand:statBand(s.defense),
   specialDefenseBand:statBand(s.specialDefense),
   effectiveSpeed:s.speed,
-  universalAC:Number.isInteger(rules?.universalAc)?rules.universalAc:null,
+  universalAC:acOverride??(11+pb),
+  acOverridden:acOverride!==null,
   universalAcFormula:'11 + proficiency bonus',
-  physicalOffenseMultiplier:tierMultiplier(s.attack,off,'offense'),
-  specialOffenseMultiplier:tierMultiplier(s.specialAttack,off,'offense'),
+  physicalOffenseMultiplier:physicalOffense,
+  specialOffenseMultiplier:specialOffense,
+  levelledPhysicalOffenseMultiplier:physicalOffense*levelMultiplier,
+  levelledSpecialOffenseMultiplier:specialOffense*levelMultiplier,
   physicalDefenseMultiplier:tierMultiplier(s.defense,def,'defense'),
   specialDefenseMultiplier:tierMultiplier(s.specialDefense,def,'defense')
  };
