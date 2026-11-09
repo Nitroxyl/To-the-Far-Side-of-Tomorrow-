@@ -46,3 +46,7 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 #memory-slots-form{margin:16px 0 24px}
 #memory-slots-form .actions,.memory-gm-panel .actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
 @media(max-width:650px){.memory-move-row{align-items:flex-start}}
+
+.memory-locked-list{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+.memory-locked-item{display:flex;flex-direction:column;gap:2px;padding:7px 10px;color:var(--text);background:#172b38;border:1px dashed #466273;border-radius:9px;font-size:12px}
+.memory-locked-item small{color:var(--muted);font-size:10px}
