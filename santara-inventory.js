@@ -2,7 +2,7 @@ import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/1
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,doc,collection,query,where,onSnapshot,getDoc,addDoc,runTransaction,serverTimestamp,updateDoc} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {ITEM_CATEGORIES,MAX_BAG_ENTRIES,bagItems,itemDefinition,adjustBag,teachMove,tmUsable,moveId} from './santara-inventory-core.js?v=bag-tm-20261109-1';
-import {officialFamilyMoveCatalog,fetchPokeApi,legalMove,customMoveScope} from './pokemon-forms-learnsets.js?v=historical-learnsets-20261109-1';
+import {officialFamilyMoveCatalog,fetchPokeApi,legalMove,customMoveScope} from './pokemon-forms-learnsets.js?v=move-memory-20261109-1';
 import {mergeMoveMemory,memoryKey} from './pokemon-move-memory.js?v=move-memory-20261109-1';
 
 const ROOT_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
