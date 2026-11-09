@@ -72,11 +72,11 @@ export function renderTrainerSheetEditor(input,active=false){
   [0,1,2].map(n=>'<option value="'+n+'"'+(n===value?' selected':'')+'>+'+n+'</option>').join('');
  const attr=TRAINER_ATTRIBUTES.map(a=>'<label class="sheet-stat-input"><strong>'+a.short+'</strong><span>'+a.name+'</span><select name="sheetStat_'+a.key+'">'+options(s.attributes[a.key])+'</select><small>'+esc(a.hint)+'</small></label>').join('');
  const skill=TRAINER_SKILLS.map(name=>'<label class="sheet-skill-choice"><input type="checkbox" name="sheetSkill" value="'+esc(name)+'"'+(s.skills.includes(name)?' checked':'')+'><span>'+esc(name)+'</span></label>').join('');
- const narrative=TRAINER_STORY_FIELDS.map(f=>'<label class="field full">'+esc(f.label)+'<textarea name="sheet_'+f.key+'" maxlength="'+f.max+'" rows="3" placeholder="'+esc(f.prompt)+'">'+esc(s[f.key])+'</textarea></label>').join('');
+ const narrative=TRAINER_STORY_FIELDS.map(f=>'<label class="field sheet-story-field">'+esc(f.label)+'<textarea name="sheet_'+f.key+'" maxlength="'+f.max+'" rows="2">'+esc(s[f.key])+'</textarea></label>').join('');
  return '<section class="tabpane" data-pane-body="sheet"'+(active?'':' hidden')+'>'+
   '<div class="sheet-intro"><h3>Character sheet · Expedition dossier</h3><p>Your trainer is a person first, not a second Pokémon. These details shape exploration and roleplay. Only approved Trainers can view your published dossier.</p></div>'+
-  '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'" placeholder="e.g. 18"></label>'+
-  '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'" placeholder="e.g. Student, mechanic, researcher"></label></div>'+
+  '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'"></label>'+
+  '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'"></label></div>'+
   '<h3 class="sheet-heading">Trainer attributes</h3><p class="hint">Assign +2, +1, +1 and +0 across the four attributes. These only affect trainer skill checks, not Pokémon damage.</p>'+
   '<div class="sheet-attribute-editor">'+attr+'</div>'+
   '<h3 class="sheet-heading">Skill proficiencies</h3><p class="hint">Choose three. Each chosen skill adds +2 to relevant checks: d20 + attribute + proficiency (if applicable).</p>'+
