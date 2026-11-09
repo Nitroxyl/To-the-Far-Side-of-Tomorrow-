@@ -66,14 +66,14 @@ export function sheetComplete(sheet){
  const s=normalizeTrainerSheet(sheet);
  return TRAINER_ATTRIBUTES.map(({key})=>s.attributes[key]).sort().join(',')==='0,1,1,2'&&s.skills.length===3;
 }
-export function renderTrainerSheetEditor(input){
+export function renderTrainerSheetEditor(input,active=false){
  const s=normalizeTrainerSheet(input);
  const options=value=>'<option value="-1"'+(value===-1?' selected':'')+'>Not assigned</option>'+
   [0,1,2].map(n=>'<option value="'+n+'"'+(n===value?' selected':'')+'>+'+n+'</option>').join('');
  const attr=TRAINER_ATTRIBUTES.map(a=>'<label class="sheet-stat-input"><strong>'+a.short+'</strong><span>'+a.name+'</span><select name="sheetStat_'+a.key+'">'+options(s.attributes[a.key])+'</select><small>'+esc(a.hint)+'</small></label>').join('');
  const skill=TRAINER_SKILLS.map(name=>'<label class="sheet-skill-choice"><input type="checkbox" name="sheetSkill" value="'+esc(name)+'"'+(s.skills.includes(name)?' checked':'')+'><span>'+esc(name)+'</span></label>').join('');
  const narrative=TRAINER_STORY_FIELDS.map(f=>'<label class="field full">'+esc(f.label)+'<textarea name="sheet_'+f.key+'" maxlength="'+f.max+'" rows="3" placeholder="'+esc(f.prompt)+'">'+esc(s[f.key])+'</textarea></label>').join('');
- return '<section class="tabpane" data-pane-body="sheet" hidden>'+
+ return '<section class="tabpane" data-pane-body="sheet"'+(active?'':' hidden')+'>'+
   '<div class="sheet-intro"><h3>Character sheet · Expedition dossier</h3><p>Your trainer is a person first, not a second Pokémon. These details shape exploration and roleplay. Only approved Trainers can view your published dossier.</p></div>'+
   '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'" placeholder="e.g. 18"></label>'+
   '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'" placeholder="e.g. Student, mechanic, researcher"></label></div>'+
