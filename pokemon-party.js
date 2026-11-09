@@ -589,6 +589,31 @@ function detail(m){
 function statInputs(data){
  return statKeys.map((k,i)=>`<label class="field">${statLabels[i]} base stat<input name="${k}" type="number" min="1" max="255" required value="${data?.[k]||''}"></label>`).join('');
 }
+// The editor recalculates only generated HP or after explicit GM approval.
+// Existing manual/boss HP remains unchanged until Recalculate HP is pressed.
+function refreshLevelHpPreview(form,force=false){
+ const level=Number(form?.elements?.level?.value);
+ const mon=draft||pokemon.find(m=>m.id===editingId);
+ if(!GM_SITE||!form||!validStats(mon?.baseStats)||!Number.isInteger(level)||level<1||level>100)return;
+ const hpMax=form.elements.maxHp,hpNow=form.elements.currentHp;
+ const previous=Number(hpMax.value),previousGenerated=Number(hpMax.dataset.generated);
+ const suggested=maxHpV53(mon.baseStats,level);
+ const auto=force||previous===previousGenerated;
+ if(auto){
+  const current=hpAfterMaxChange(Number(hpNow.value),previous,suggested);
+  hpMax.value=String(suggested);
+  hpNow.value=String(current);
+ }
+ hpMax.dataset.generated=String(suggested);
+ hpNow.max=String(hpMax.value);
+ const preview=document.getElementById('v53-level-preview');
+ if(preview)preview.textContent='D&D Lv '+dndLevel(level)+'/20 · Proficiency +'+proficiencyBonus(level)+
+  ' · Level damage ×'+levelDamageMultiplier(level).toFixed(2)+
+  ' · Suggested HP '+suggested+(Number(hpMax.value)!==suggested?' · Manual/legacy HP preserved':'');
+ if(draft){draft.level=level;draft.maxHp=Number(hpMax.value);draft.currentHp=Number(hpNow.value);}
+ return {suggested,maxHp:Number(hpMax.value),currentHp:Number(hpNow.value),auto};
+}
+
 function gmForm(){
  if(!ownerFilter){return '<section class="panel"><h2>Choose a Trainer first</h2><p>Approved Trainer accounts will appear once someone has registered and been approved in the GM console.</p></section>'}
  const existing=pokemon.find(m=>m.id===editingId);
@@ -600,11 +625,11 @@ function gmForm(){
  <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button class="btn" data-act="lookup" type="button">Fetch stats from PokéAPI / custom list</button><span class="hint" id="species-source">${draft?esc(d.source||''):'Look up a species before saving.'}</span></div>
  <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,trainerLabel(t.uid),d.ownerUid||ownerFilter)).join('')}</select></label>
- <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label>
+ <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label><p id="v53-level-preview" class="hint full">D&D Lv ${dndLevel(level)}/20 · Proficiency +${proficiencyBonus(level)} · Level damage ×${levelDamageMultiplier(level).toFixed(2)} · Suggested HP ${defaultHp}${d.maxHp!=null&&Number(d.maxHp)!==defaultHp?' · Manual/legacy HP preserved':''}</p>
  <label class="field">Nickname<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
  <label class="field">Ability<input name="ability" list="abilities" maxlength="48" value="${esc(d.ability||d.abilities?.[0]||'')}"><datalist id="abilities">${eligibleAbilityNames(d,customAbilities).map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist></label>
- <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp||defaultHp}"></label>
- <label class="field">Current HP<input name="currentHp" type="number" min="0" max="3000" required value="${d.currentHp??d.maxHp??defaultHp}"></label>
+ <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp??defaultHp}"><span class="hint">V5.3 calculated max HP: ${defaultHp}. You may override this for bosses.</span></label>
+ <label class="field">Current HP<input name="currentHp" type="number" min="0" max="${d.maxHp??defaultHp??3000}" required value="${d.currentHp??d.maxHp??defaultHp}"></label><div class="actions"><button class="btn" type="button" data-act="recalc-hp">Recalculate HP (V5.3)</button><span class="hint">Keeps damage taken; fainted Pokémon stay at 0 HP. Click Save Pokémon to apply.</span></div>
  <label class="field">Party slot<select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,d.slot??0)).join('')}</select></label>
  <label class="field">Tera Type<select name="teraType">${TYPES.map(t=>option(t,t[0].toUpperCase()+t.slice(1),d.teraType||d.types?.[0]||'normal')).join('')}</select></label>
  <label class="field full">Mega Evolution form<select name="megaSlug">${option('','No Mega assigned',d.megaForm?.slug||'')}${megaChoiceFor(d).map(f=>option(f.slug,f.name,d.megaForm?.slug||'')).join('')}</select>
@@ -616,7 +641,7 @@ function gmForm(){
  <div class="actions"><button type="button" class="btn small" data-act="define-move">+ Define custom move</button><button type="button" class="btn small" data-act="define-ability">+ Define custom ability</button></div></div>
  <label class="field full">Location obtained / history<input name="origin" maxlength="150" value="${esc(d.origin||'')}"></label>
  <label class="field full">Shared notes (visible to Trainer)<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
- <p class="hint full">Official six base stats, types, abilities and artwork are imported automatically. Default HP is calculated from our older V4 baseline until the finalized V5.2 HP rule is entered; you can override HP above. The obsolete V4 AC is NOT used.</p>
+ <p class="hint full">V5.3 HP uses Base HP and level; D&D level = ceiling(Pokémon level ÷ 5). Existing saved HP is never changed just by opening this editor. You can manually override HP for bosses, or use Recalculate HP to adopt V5.3.</p>
  <div class="actions"><button class="btn primary" type="submit" ${draft||existing?'':'disabled'}>${existing?'Save Pokémon':'Assign to Trainer'}</button></div>
  </form></section>`;
 }
@@ -808,6 +833,12 @@ root.addEventListener('click',async e=>{
     if(!mon)throw Error('No Pokémon selected.');
     await gimmickAction(action.slice(2),mon);
   }
+  if(action==='recalc-hp'&&GM_SITE){
+   const form=document.getElementById('assign-form');
+   const result=refreshLevelHpPreview(form,true);
+   if(!result)throw Error('Fetch valid Pokémon stats and select a level first.');
+   say('V5.3 HP preview: '+result.currentHp+'/'+result.maxHp+'. Save Pokémon to keep this change. Any custom HP overrides can still be edited.');
+  }
   if(action==='lookup'&&GM_SITE){
     busy=true;b.disabled=true;say('Fetching species stats…');
     const input=document.getElementById('species-query');
@@ -857,15 +888,11 @@ root.addEventListener('change',e=>{
   }
  }
  if(e.target.id==='trainer-filter'){ownerFilter=e.target.value;chosen='';view='party';render()}
- if(e.target.name==='level'&&view==='assign'&&draft?.baseStats){
-  const level=Number(e.target.value),form=document.getElementById('assign-form');
-  if(Number.isInteger(level)&&level>=1&&level<=100&&form){
-   const max=form.elements.maxHp,cur=form.elements.currentHp,old=Number(max.value);
-   const newMax=maxHpV53(draft.baseStats,level);
-   if(old===Number(max.dataset.generated)){if(Number(cur.value)===old)cur.value=newMax;max.value=newMax}
-   max.dataset.generated=String(newMax);draft.level=level;
+ if(e.target.name==='level'&&view==='assign'&&GM_SITE)refreshLevelHpPreview(document.getElementById('assign-form'));
+  if(e.target.name==='maxHp'&&view==='assign'&&GM_SITE){
+   const form=document.getElementById('assign-form');
+   if(form)form.elements.currentHp.max=form.elements.maxHp.value;
   }
- }
 });
 root.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;
