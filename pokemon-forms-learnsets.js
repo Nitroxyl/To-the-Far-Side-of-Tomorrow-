@@ -237,7 +237,9 @@ export function historicalMoveCatalog(pokemon,ancestors=[]){
   versionGroup:'all-generations',
   knownMoves:[...methods.keys()].sort(),
   moveMethods:Object.fromEntries([...methods].map(([name,source])=>[name,[...source].sort()])),
-  tmMoves:[...methods].filter(([_,source])=>[...source].some(method=>method.endsWith('machine'))).map(([name])=>name).sort(),
+  // A move available as a TM only on the *pre-evolution* cannot be
+  // taught directly to an evolved form. It stays relearnable if already earned.
+  tmMoves:[...methods].filter(([_,source])=>source.has('machine')).map(([name])=>name).sort(),
   inheritedFrom:ancestors.map(mon=>mon.name)
  };
 }
