@@ -198,9 +198,9 @@ window.SantaraTrainer={
   }
   const p={...DEFAULT,...ownCard};
   const ownURL='./trainer.html';
-  root.innerHTML='<section class="hero"><div class="eyebrow">TRAINER IDENTITY</div><h2>Trainer Passports</h2><p>Your official Santara Trainer Card now has its own customisation studio. Open your personal profile to edit your colours, portrait, banner and team.</p></section>'+
+  root.innerHTML='<section class="hero"><div class="eyebrow">TRAINER IDENTITY</div><h2>Trainer Passports</h2><p>Your official Santara Trainer Card now has its own customisation studio. Open your personal profile to edit your colours, portrait, banner, character sheet and team.</p></section>'+
   '<div class="trainer-shell"><div><a class="trainer-profile-link" href="'+ownURL+'">'+formatCard(p)+'</a><a class="btn primary" style="display:inline-block;margin-top:15px;text-decoration:none" href="'+ownURL+'">★ Customize my Trainer Card</a></div>'+
-  '<section class="trainer-form"><h2 class="trainer-title">Your Trainer Passport</h2><p class="trainer-helper">Every Trainer has a personal page. Your name and favourite Pokémon appear on the roster, while your profile photo, colours, banner, motto and team can all be customized in the full editor.</p>'+
+  '<section class="trainer-form"><h2 class="trainer-title">Your Trainer Passport</h2><p class="trainer-helper">Every Trainer has a personal page. Your name and favourite Pokémon appear on the roster. The full editor includes your colours, portrait, motto, automatically synced party, and a Character Sheet for your attributes, proficiencies and backstory.</p>'+
   '<p class="trainer-helper">Images are automatically resized and saved to Firestore without requiring Firebase Storage.</p><a class="btn primary" style="display:inline-block;margin-top:10px;text-decoration:none" href="'+ownURL+'">Open my profile →</a></section></div>'+
   '<section style="margin-top:30px"><h2 class="trainer-title">Registered Trainers</h2><p class="trainer-helper">Select any card to view its owner’s Trainer Passport. Only the owner can edit it.</p><div class="trainer-roster">'+
   (roster.length?roster.map(card=>'<a class="trainer-profile-link" href="./trainer.html?uid='+encodeURIComponent(card.uid)+'">'+formatCard(card,true)+'</a>').join(''):'<p class="trainer-helper">Nobody has published a Trainer Card yet.</p>')+
