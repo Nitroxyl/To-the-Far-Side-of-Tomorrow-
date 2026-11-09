@@ -618,6 +618,91 @@ function moveMemoryView(mon){
  </section>`;
 }
 
+
+async function ensureMoveMemory(monId){
+ const pokemonRef=doc(store,'santara_pokemon',monId),memoryRef=doc(store,'santara_pokemon_move_memory',monId);
+ await runTransaction(store,async tx=>{
+  const [pokemonSnap,memorySnap]=await Promise.all([tx.get(pokemonRef),tx.get(memoryRef)]);
+  if(!pokemonSnap.exists())throw Error('Pokémon no longer exists.');
+  const current=pokemonSnap.data();
+  if(!GM_SITE&&current.ownerUid!==user.uid)throw Error('You do not own this Pokémon.');
+  if(memorySnap.exists()){
+   const remembered=memorySnap.data();
+   if(remembered.ownerUid!==current.ownerUid||remembered.speciesKey!==current.speciesKey){
+    if(!GM_SITE)throw Error('This Pokémon evolved or changed form. Ask your GM to resync its Move Memory.');
+    const reset=mergeMoveMemory(current,remembered,[],'gm',false);
+    tx.set(memoryRef,{...reset,updatedAt:serverTimestamp()});
+   }
+   return;
+  }
+  // Safe legacy import: player's create permission requires exact current
+  // GM-assigned moves and an empty sources map; it cannot add any other moves.
+  tx.set(memoryRef,{ownerUid:current.ownerUid,speciesKey:current.speciesKey,
+   unlockedMoves:uniqueMoves(current.moves,4),sources:{},updatedAt:serverTimestamp()});
+ });
+}
+async function openMoveManager(){
+ const mon=pokemon.find(x=>x.id===chosen);
+ if(!mon)throw Error('Choose a Pokémon first.');
+ await ensureMoveMemory(mon.id);
+ view='move-memory';activeMoveCatalog=null;moveCatalogError='';
+ render();
+ try{
+  activeMoveCatalog=mon.source==='official'
+   ?await fetchOfficial(mon.speciesKey)
+   :customFrom(customs.find(c=>('custom:'+c.slug)===mon.speciesKey));
+ }catch(err){moveCatalogError=err?.message||String(err)}
+ if(view==='move-memory'&&chosen===mon.id)render();
+}
+async function saveMemorySlots(form){
+ const monId=chosen,slots=Array.from({length:4},(_,i)=>
+  String(new FormData(form).get('memorySlot'+(i+1))||'').trim()).filter(Boolean);
+ const pokemonRef=doc(store,'santara_pokemon',monId),memoryRef=doc(store,'santara_pokemon_move_memory',monId);
+ await runTransaction(store,async tx=>{
+  const [monSnap,memSnap]=await Promise.all([tx.get(pokemonRef),tx.get(memoryRef)]);
+  if(!monSnap.exists()||!memSnap.exists())throw Error('Pokémon or Move Memory is unavailable. Reload the page.');
+  const mon=monSnap.data(),memory=memSnap.data();
+  if(!GM_SITE&&mon.ownerUid!==user.uid)throw Error('This Pokémon does not belong to you.');
+  if(memory.ownerUid!==mon.ownerUid||memory.speciesKey!==mon.speciesKey)throw Error('The memory no longer matches this Pokémon. Ask the GM to refresh it.');
+  if(!validEquippedMoves(slots,memory))throw Error('Only four distinct moves already in this Pokémon’s Move Memory may be equipped.');
+  tx.update(pokemonRef,{moves:slots,updatedAt:serverTimestamp()});
+ });
+ await lookupMoves(slots);
+ say('Moves equipped. Remembered moves remain unlocked for future swaps.');
+ render();
+}
+async function grantRememberedMoves(monId,grants,source){
+ if(!GM_SITE)throw Error('Only the GM can unlock new techniques.');
+ if(!MOVE_SOURCES.includes(source))throw Error('Choose a valid learning method.');
+ const cleaned=uniqueMoves(grants);
+ if(!cleaned.length)throw Error('Choose at least one valid move to unlock.');
+ const pokemonRef=doc(store,'santara_pokemon',monId),memoryRef=doc(store,'santara_pokemon_move_memory',monId);
+ await runTransaction(store,async tx=>{
+  const [monSnap,memSnap]=await Promise.all([tx.get(pokemonRef),tx.get(memoryRef)]);
+  if(!monSnap.exists())throw Error('The Pokémon no longer exists.');
+  const mon=monSnap.data(),original=memSnap.exists()?memSnap.data():null;
+  const memory=mergeMoveMemory(mon,original,cleaned,source,
+   !original||original.ownerUid===mon.ownerUid&&original.speciesKey===mon.speciesKey);
+  tx.set(memoryRef,{...memory,updatedAt:serverTimestamp()});
+ });
+ say(cleaned.length+' move(s) unlocked for this Pokémon. Its Trainer can now select them.');
+}
+async function revokeRememberedMove(monId,name){
+ if(!GM_SITE)throw Error('Only the GM can revoke techniques.');
+ const pokemonRef=doc(store,'santara_pokemon',monId),memoryRef=doc(store,'santara_pokemon_move_memory',monId);
+ await runTransaction(store,async tx=>{
+  const [monSnap,memSnap]=await Promise.all([tx.get(pokemonRef),tx.get(memoryRef)]);
+  if(!monSnap.exists()||!memSnap.exists())throw Error('Pokémon or memory is missing.');
+  const mon=monSnap.data(),original=memSnap.data();
+  if(original.ownerUid!==mon.ownerUid||original.speciesKey!==mon.speciesKey)throw Error('Memory needs a GM resync.');
+  const result=removeMoveMemory(mon,original,name);
+  tx.set(memoryRef,{...result.memory,updatedAt:serverTimestamp()});
+  if((mon.moves||[]).length!==result.moves.length)
+   tx.update(pokemonRef,{moves:result.moves,updatedAt:serverTimestamp()});
+ });
+ say(name+' revoked. If equipped, it was also removed from the active moveset.');
+}
+
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
@@ -870,6 +955,23 @@ root.addEventListener('click',async e=>{
  try{
   if(action==='party'||action==='storage'){chosen='';view=action;render()}
   if(action==='show')await selectMon(b.dataset.id);
+  if(action==='manage-moves'){busy=true;await openMoveManager()}
+  if(action==='memory-back'){view='party';render()}
+  if(action==='sync-level-moves'&&GM_SITE){
+   busy=true;
+   const mon=pokemon.find(x=>x.id===chosen);
+   const catalog=activeMoveCatalog?.speciesKey===mon?.speciesKey?activeMoveCatalog:null;
+   if(!catalog)throw Error('Load the official learnset first.');
+   const due=eligibleLevelMoves(mon.level,catalog.levelUpLevels).map(displayMoveName);
+   if(!due.length){say('No level-up moves found at or below this level.');}
+   else await grantRememberedMoves(mon.id,due,'level-up');
+  }
+  if(action==='revoke-memory'&&GM_SITE){
+   const move=b.dataset.move||'';
+   if(confirm('Revoke '+move+' from this Pokémon? It will also be unequipped if currently active.')){
+    busy=true;await revokeRememberedMove(chosen,move);
+   }
+  }
   if(action==='back')clearSelection();
   if(action==='catalog-back'&&GM_SITE)catalogReturn();
   if((action==='define-move'||action==='define-ability')&&GM_SITE){
@@ -968,6 +1070,12 @@ root.addEventListener('submit',async e=>{
  try{
   if(form.id==='party-login'){const f=new FormData(form);await signInWithEmailAndPassword(auth,String(f.get('email')).trim(),String(f.get('password')))}
   if(form.id==='track-form')await saveTracking(form);
+   if(form.id==='memory-slots-form')await saveMemorySlots(form);
+   if(form.id==='memory-grant-form'&&GM_SITE){
+    const f=new FormData(form),move=cap(f.get('memoryMove'),48),source=String(f.get('memorySource')||'gm');
+    await grantRememberedMoves(chosen,[move],source);
+    form.reset();
+   }
   if(form.id==='assign-form'&&GM_SITE)await saveAssign(form);
   if(form.id==='custom-form'&&GM_SITE)await saveCustom(form);
   if(form.id==='custom-move-form'&&GM_SITE)await saveCatalog(form,true);
