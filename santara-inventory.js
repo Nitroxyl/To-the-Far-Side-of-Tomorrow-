@@ -267,6 +267,9 @@ async function requestTeaching(pokemonId,itemId,forgetMove){
  if(requests.some(x=>x.status==='pending'&&x.pokemonId===pokemonId&&x.itemId===itemId))
   throw Error('You already have a pending request for this TM and Pokémon.');
  await learnable(mon,tm.moveName);
+ const memorySnap=await getDoc(doc(db,'santara_pokemon_move_memory',pokemonId));
+ if(memorySnap.exists()&&memorySnap.data().unlockedMoves?.some(name=>memoryKey(name)===memoryKey(tm.moveName)))
+  throw Error(tm.moveName+' is already unlocked. Use Manage Moves on your Pokémon instead of requesting another TM.');
  teachMove(mon.moves,tm.moveName,forgetMove);
  await addDoc(collection(db,'santara_tm_requests'),{
   ownerUid:user.uid,pokemonId,itemId,moveName:tm.moveName,forgetMove,
