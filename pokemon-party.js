@@ -591,6 +591,12 @@ function moveMemoryView(mon){
  const cat=activeMoveCatalog?.speciesKey===mon.speciesKey?activeMoveCatalog:null;
  const levelEntries=Object.entries(cat?.levelUpLevels||{}).filter(([id,min])=>
   Number(min)<=Number(mon.level)&&!unlockedIds.has(memoryKey(id)));
+ const otherLocked=Object.entries(cat?.moveMethods||{}).filter(([id])=>
+  !unlockedIds.has(memoryKey(id))&&!levelEntries.some(([levelId])=>memoryKey(levelId)===memoryKey(id)))
+  .slice(0,45);
+ const sourceHint=methods=>(Array.isArray(methods)?methods:[]).map(m=>
+  m.startsWith('inherited-')?'Pre-evolution '+m.slice('inherited-'.length):
+   ({machine:'TM',egg:'Egg',tutor:'Tutor','level-up':'Higher level',evolution:'Evolution'})[m]||m).join(' / ');
  const suggested=[...new Set([...(cat?.knownMoves||[]).map(displayMoveName),...customMoves.map(c=>c.name),...equipped])];
  const rows=unlocked.map(name=>{
   const source=memory?.sources?.[memoryKey(name)]||'legacy';
@@ -606,6 +612,7 @@ function moveMemoryView(mon){
  <h3>Unlocked techniques · ${unlocked.length}</h3>
  <div class="memory-move-list">${rows||'<p class="hint">No moves unlocked yet. Existing GM-assigned moves are imported when Move Memory opens.</p>'}</div>
  ${cat?`<h3>Level-up moves awaiting unlock · ${levelEntries.length}</h3><p class="hint">${levelEntries.length?levelEntries.slice(0,40).map(([id,min])=>esc(displayMoveName(id))+' (Lv. '+min+')').join(' · '):'No additional reached-level moves are pending.'} ${levelEntries.length>40?'…':''}</p>`:''}
+ ${cat&&otherLocked.length?`<h3>Compatible but locked</h3><p class="hint">These moves need a TM, Egg training, a higher level, or another GM-approved method. Compatibility alone does not unlock a move.</p><div class="memory-locked-list">${otherLocked.map(([id,methods])=>`<span class="memory-locked-item">${esc(displayMoveName(id))}<small>${esc(sourceHint(methods))}</small></span>`).join('')}</div>`:''}
  ${moveCatalogError?`<p class="hint">Official learnset temporarily unavailable: ${esc(moveCatalogError)}. Already unlocked moves are still usable.</p>`:''}
  ${GM_SITE?`<div class="memory-gm-panel"><h3>GM: grant or revoke move access</h3>
  <p>Unlocks appear immediately in the Trainer’s Move Memory. Egg training and tutors require your approval; the selected source records how the move was obtained. Grants do not automatically equip the move.</p>
