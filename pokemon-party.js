@@ -3,6 +3,7 @@ import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,Go
 import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {statKeys,statLabels,validStats,maxHpV53,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=santara-v53-20261109-1';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
+import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
@@ -440,15 +441,20 @@ async function lookupMoves(names){
    const key=name.toLowerCase().trim().replace(/\s+/g,'-');
    const special=customMoveByName(name);
    if(special){
-     moveCache.set(key,{type:special.type,category:special.category?.toLowerCase(),power:special.power,accuracy:special.accuracy,description:special.description,dice:special.dice,custom:true});
+     moveCache.set(key,{type:special.type,category:special.category?.toLowerCase(),power:special.power,
+      accuracy:special.accuracy,description:special.description,dice:special.dice,custom:true,
+      classification:classifyMove(name,special)});
      return;
    }
    if(moveCache.has(key))return;
+   // Competitive tags are local; PokéAPI enriches power, type and accuracy.
+   const classification=classifyMove(name);
    try {
      const r=await fetchPokeApi('https://pokeapi.co/api/v2/move/'+encodeURIComponent(key));
-     if(r.ok){const x=await r.json();moveCache.set(key,{power:x.power,type:x.type?.name,category:x.damage_class?.name,accuracy:x.accuracy});}
-     else moveCache.set(key,null);
-   }catch{moveCache.set(key,null)}
+     if(r.ok){const x=await r.json();moveCache.set(key,{power:x.power,type:x.type?.name,
+      category:x.damage_class?.name||classification.category?.toLowerCase(),accuracy:x.accuracy,classification});}
+     else moveCache.set(key,{classification});
+   }catch{moveCache.set(key,{classification})}
  }));
  moveInfo=Object.fromEntries(list.map(name=>[name,moveCache.get(name.toLowerCase().trim().replace(/\s+/g,'-'))]));
 }
@@ -461,7 +467,7 @@ function card(m){
  const max=Math.max(1,shown.maxHp||1),pct=Math.max(0,Math.min(100,Math.round((shown.currentHp||0)/max*100)));
  const cls=pct<=20?'critical':pct<=50?'low':'';
  return `<button class="poke-card" type="button" data-act="show" data-id="${esc(m.id)}">${artwork(shown)}<span class="poke-info">
- <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((shown.types||[]).join(' / '))}</span>
+ <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((shown.types||[]).join(' / '))}</span><span class="sub" style="display:block">Movement: ${combatSummary(shown,battleRules).movementSquares} squares / turn</span>
  <span class="hpbar ${cls}"><i style="width:${pct}%"></i></span><span class="sub">${shown.currentHp}/${shown.maxHp} HP · ${esc(m.status||'None')}</span></span></button>`;
 }
 
@@ -570,11 +576,15 @@ function detail(m){
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
  <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> <span class="chip">D&D Lv. ${d.dndLevel}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
- <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p>
- <div class="stats-grid"><div class="stat"><b>${d.dndLevel}/20</b><small>D&D level</small></div><div class="stat"><b>+${d.proficiencyBonus}</b><small>Proficiency / attacks</small></div><div class="stat"><b>${mul(d.levelDamageMultiplier)}</b><small>Level damage</small></div><div class="stat"><b>${d.universalAC}</b><small>Universal AC (V5.3)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.levelledPhysicalOffenseMultiplier)}</b><small>Physical offense × level</small></div><div class="stat"><b>${mul(d.levelledSpecialOffenseMultiplier)}</b><small>Special offense × level</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
+ <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p><p class="hint">Grid movement: <b>${d.movementSquares} squares per turn</b> (${d.movementFeet} ft). 1 square = 5 ft. D&D grid encounters only; major Doubles battles use standard Pokémon targeting.</p>
+ <div class="stats-grid"><div class="stat"><b>${d.movementSquares}</b><small>Grid movement · squares</small></div><div class="stat"><b>${d.dndLevel}/20</b><small>D&D level</small></div><div class="stat"><b>+${d.proficiencyBonus}</b><small>Proficiency / attacks</small></div><div class="stat"><b>${mul(d.levelDamageMultiplier)}</b><small>Level damage</small></div><div class="stat"><b>${d.universalAC}</b><small>Universal AC (V5.3)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.levelledPhysicalOffenseMultiplier)}</b><small>Physical offense × level</small></div><div class="stat"><b>${mul(d.levelledSpecialOffenseMultiplier)}</b><small>Special offense × level</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
  <p class="flag">V5.3: damage dice × offense × level (${mul(d.levelDamageMultiplier)}) × STAB × type effectiveness × defense. Attack rolls add proficiency (+${d.proficiencyBonus}); ${d.acOverridden?'GM-set universal AC '+d.universalAC:'universal AC '+d.universalAC+' = 11 + PB'}. The original V5.2 stat tiers are unchanged.</p>${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV53(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from the V5.3 suggested '+maxHpV53(m.baseStats,m.level)+'. A GM can recalculate HP in Edit Pokémon; existing overrides are kept until saved.</p>':''}
  <div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
- const info=moveInfo[name];return `<div class="move"><b>${esc(name)}</b><div class="hint">${info?`${esc(info.type)} · ${esc(info.category)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'Move details not available'}</div>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
+  const info=moveInfo[name],special=customMoveByName(name);
+  const cls=info?.classification||classifyMove(name,special||null);
+  const tags=classificationLabels(cls).map(label=>`<span class="move-class">${esc(label)}</span>`).join('');
+  const stats=info?.type?`${esc(info.type)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'BP / accuracy unavailable';
+  return `<div class="move"><b>${esc(name)}</b><div class="move-classifications">${tags}</div><p class="hint">${stats}</p>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
  ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm),megaAssignments[m.id]?.requiredStone||'')}<section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
