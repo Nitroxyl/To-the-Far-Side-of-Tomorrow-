@@ -3,6 +3,7 @@ import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,Go
 import {getFirestore,doc,collection,query,where,onSnapshot,getDoc,addDoc,runTransaction,serverTimestamp,updateDoc} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {ITEM_CATEGORIES,MAX_BAG_ENTRIES,bagItems,itemDefinition,adjustBag,teachMove,tmUsable,moveId} from './santara-inventory-core.js?v=bag-tm-20261109-1';
 import {officialFamilyMoveCatalog,fetchPokeApi,legalMove,customMoveScope} from './pokemon-forms-learnsets.js?v=historical-learnsets-20261109-1';
+import {mergeMoveMemory,memoryKey} from './pokemon-move-memory.js?v=move-memory-20261109-1';
 
 const ROOT_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM=window.SANTARA_POKEMON_EDITION==='gm';
@@ -201,9 +202,15 @@ async function learnable(mon,moveName){
  }
  const custom=customMoves.find(x=>moveId(x.name||x.slug)===id);
  if(custom&&customMoveScope(custom).requiredMegaSlug)throw Error('Mega-exclusive moves cannot be taught using ordinary TMs.');
- if(!legalMove(moveName,{speciesKey:key,knownMoves:known.knownMoves},customMoves,'')){
+ // Official moves require the actual TM/machine learn method, not just
+ // level-up or Egg compatibility. Custom species use their GM-curated
+ // knownMoves list as the compatibility whitelist until source tags exist.
+ const compatible=mon.source==='custom'
+  ?legalMove(moveName,{speciesKey:key,knownMoves:known.knownMoves},customMoves,'')
+  :Array.isArray(known.tmMoves)&&known.tmMoves.some(m=>memoryKey(m)===id);
+ if(!compatible){
   if(known.incomplete)throw Error('Evolution data is temporarily incomplete; retry the compatibility check.');
-  throw Error(mon.speciesName+' cannot learn '+moveName+' from its official or custom movepool.');
+  throw Error(mon.speciesName+' cannot learn '+moveName+' via TM. Level-up, Egg and tutor methods do not count.');
  }
 }
 async function teachTm(ownerUid,pokemonId,itemId,forgetMove,requestId=''){
@@ -211,6 +218,7 @@ async function teachTm(ownerUid,pokemonId,itemId,forgetMove,requestId=''){
  const bagRef=doc(db,'santara_trainer_bags',ownerUid);
  const monRef=doc(db,'santara_pokemon',pokemonId);
  const requestRef=requestId?doc(db,'santara_tm_requests',requestId):null;
+ const memoryRef=doc(db,'santara_pokemon_move_memory',pokemonId);
  // Compatibility is checked outside the Firestore transaction, so retries
  // never repeat network calls. The transaction rechecks owner, species,
  // item, request status, quantity and move slots before changing anything.
@@ -222,8 +230,9 @@ async function teachTm(ownerUid,pokemonId,itemId,forgetMove,requestId=''){
  await learnable(mon,item.moveName);
  const newMoves=teachMove(mon.moves,item.moveName,forgetMove);
  await runTransaction(db,async tx=>{
-  const [bagDocument,pokemonDocument,requestDocument]=await Promise.all([
-   tx.get(bagRef),tx.get(monRef),requestRef?tx.get(requestRef):Promise.resolve(null)
+  const [bagDocument,pokemonDocument,memoryDocument,requestDocument]=await Promise.all([
+   tx.get(bagRef),tx.get(monRef),tx.get(memoryRef),
+   requestRef?tx.get(requestRef):Promise.resolve(null)
   ]);
   if(!bagDocument.exists()||!pokemonDocument.exists())throw Error('The inventory or Pokémon changed during teaching.');
   const bag=bagDocument.data(),current=pokemonDocument.data();
@@ -236,13 +245,20 @@ async function teachTm(ownerUid,pokemonId,itemId,forgetMove,requestId=''){
    if(req.ownerUid!==ownerUid||req.pokemonId!==pokemonId||req.itemId!==itemId||req.moveName!==item.moveName||req.forgetMove!==forgetMove)
     throw Error('TM request details do not match the item and Pokémon.');
   }
+  const remembered=memoryDocument.exists()?memoryDocument.data():null;
+  if(remembered&&(remembered.ownerUid!==ownerUid||remembered.speciesKey!==current.speciesKey))
+   throw Error('Move Memory owner/species changed. Ask the GM to resync it.');
+  if(remembered?.unlockedMoves?.some(name=>memoryKey(name)===memoryKey(item.moveName)))
+   throw Error(item.moveName+' is already remembered. Equip it from Manage Moves instead of consuming another TM.');
   const moves=teachMove(current.moves,item.moveName,forgetMove);
+  const memory=mergeMoveMemory(current,remembered,[item.moveName],'tm',true);
   const newItems=adjustBag(bag.items,currentItem,-1);
   tx.update(monRef,{moves,updatedAt:serverTimestamp()});
+  tx.set(memoryRef,{...memory,updatedAt:serverTimestamp()});
   tx.set(bagRef,{ownerUid,items:newItems,updatedAt:serverTimestamp()});
   if(requestRef)tx.update(requestRef,{status:'approved',resolvedAt:serverTimestamp()});
  });
- status(item.moveName+' taught successfully. 1 TM was consumed and '+(mon.nickname||mon.speciesName)+' has been updated.');
+ status(item.moveName+' taught and permanently remembered. 1 TM was consumed; later move swaps are free.');
 }
 async function requestTeaching(pokemonId,itemId,forgetMove){
  if(!approved||!user)throw Error('Sign in as an approved Trainer first.');
