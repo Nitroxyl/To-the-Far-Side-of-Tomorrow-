@@ -48,3 +48,12 @@ test('the dossier renders four stat selectors and twelve skill checkboxes',()=>{
  assert.equal((html.match(/name="sheetSkill"/g)||[]).length,12);
  assert.ok(html.startsWith('<section class="tabpane" data-pane-body="sheet">'));
 });
+
+test('background fields use compact two-column layout with no guiding placeholders',()=>{
+ const markup=renderTrainerSheetEditor(blankTrainerSheet(),true);
+ assert.equal((markup.match(/class="field sheet-story-field"/g)||[]).length,9);
+ assert.equal((markup.match(/<textarea /g)||[]).length,9);
+ assert.ok(!markup.includes('placeholder='));
+ assert.ok(!markup.includes('class="field full"'));
+ assert.ok(markup.includes('class="form-group sheet-story-editor"'));
+});
