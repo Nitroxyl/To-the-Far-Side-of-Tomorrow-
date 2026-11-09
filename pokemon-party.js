@@ -9,7 +9,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
-import {customAbilityScope,validCustomAbilityScope,eligibleAbilityNames,legalAbility,officialFamilyMoveCatalog,officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,moveKey} from './pokemon-forms-learnsets.js?v=historical-learnsets-20261109-1';
+import {customAbilityScope,validCustomAbilityScope,eligibleAbilityNames,legalAbility,officialFamilyMoveCatalog,officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,moveKey} from './pokemon-forms-learnsets.js?v=move-memory-20261109-1';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const GM_SITE=window.SANTARA_POKEMON_EDITION==='gm';
