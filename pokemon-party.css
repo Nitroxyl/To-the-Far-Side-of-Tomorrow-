@@ -28,3 +28,10 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 
 /* V5.3 GM editor progression preview */
 #v53-level-preview{grid-column:1/-1;border-left:3px solid var(--teal);padding:9px 13px;background:#15313a;border-radius:8px;margin:0}
+
+/* V5.3 grid combat: readable move classes and custom move trait selection. */
+.move-classifications{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0}
+.move-class{font-size:11px;font-weight:700;line-height:1.4;letter-spacing:.02em;color:#c7e9e4;background:#173540;border:1px solid #39616c;border-radius:7px;padding:4px 7px}
+.trait-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:11px;border:1px solid #345467;background:#0d2030;border-radius:12px}
+.trait-choices label{display:flex;gap:7px;align-items:center;color:var(--text);font-size:13px;font-weight:500}
+.trait-choices input{margin:0;width:17px;height:17px}
