@@ -4,6 +4,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebas
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
+import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js';
 
 const ROOT=document.getElementById('profile-root');
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
@@ -12,7 +13,7 @@ const themes={crimson:['#b8395a','#35142f'],ocean:['#168db9','#112c55'],emerald:
 const emblems=['🎒','⚔️','✨','🔥','🌊','🌿','⚡','🌙','💎','🐉','🛡️','🧭'];
 const types=['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison','Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
 const patterns=['plain','grid','diagonal','rings','stars'];
-const defaults={trainerName:'New Trainer',trainerClass:'Pokémon Trainer',trainerTitle:'Rookie Researcher',hometown:'Luma Town',partnerPokemon:'My partner',favoriteType:'Normal',theme:'ocean',avatar:'🎒',badgeCount:0,quote:'Every journey begins somewhere.',team:['','','','','',''],customPrimary:'#168db9',customSecondary:'#112c55',pattern:'grid',portraitData:'',bannerData:''};
+const defaults={trainerName:'New Trainer',trainerClass:'Pokémon Trainer',trainerTitle:'Rookie Researcher',hometown:'Luma Town',partnerPokemon:'My partner',favoriteType:'Normal',theme:'ocean',avatar:'🎒',badgeCount:0,quote:'Every journey begins somewhere.',team:['','','','','',''],customPrimary:'#168db9',customSecondary:'#112c55',pattern:'grid',portraitData:'',bannerData:'',characterSheet:blankTrainerSheet()};
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const correctHex=x=>/^#[0-9a-fA-F]{6}$/.test(x||'');
 const validImage=(value,limit)=>typeof value==='string'&&value.length<=limit&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(value);
@@ -99,10 +100,10 @@ function htmlEditor(){
  while(team.length<6)team.push('');
  return '<div class="studio"><section class="preview-wrap"><div class="preview-label"><h2>Live card preview</h2><span>Updates as you customize</span></div><div id="passport-preview">'+paintCard(p)+'</div>'+
  '<p class="preview-helper">Your six party slots now sync from My Pokémon automatically, including Pokémon assigned or moved by your GM. Your colours, portrait and motto are saved separately.</p>'+
- '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
+ '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a><div id="character-sheet-preview">'+renderTrainerSheetViewer(p.characterSheet)+'</div></section>'+
  '<section class="panel"><div class="editor-header"><h2>Customize your ID</h2><span class="eyebrow">PERSONAL EDITION</span></div>'+
  '<div class="section-tabs" role="tablist" aria-label="Trainer card editor sections">'+
- [['identity','Identity'],['design','Design & photos'],['team','Team']].map(([id,t])=>'<button type="button" data-pane="'+id+'" class="'+(currentPane===id?'active':'')+'" aria-selected="'+(currentPane===id?'true':'false')+'">'+t+'</button>').join('')+'</div>'+
+ [['identity','Identity'],['sheet','Character sheet'],['design','Design & photos'],['team','Team']].map(([id,t])=>'<button type="button" data-pane="'+id+'" class="'+(currentPane===id?'active':'')+'" aria-selected="'+(currentPane===id?'true':'false')+'">'+t+'</button>').join('')+'</div>'+
  '<form id="passport-form">'+
  '<section class="tabpane" data-pane-body="identity" '+(currentPane==='identity'?'':'hidden')+'><div class="form-group">'+
  '<label class="field">Trainer name<input name="trainerName" maxlength="32" required value="'+val('trainerName')+'"></label>'+
@@ -114,7 +115,7 @@ function htmlEditor(){
  '<label class="field">Gym badges<select name="badgeCount">'+option(['0','1','2','3','4','5','6','7','8'],String(p.badgeCount??0))+'</select></label>'+
  '<label class="field">Emblem<select name="avatar">'+option(emblems,p.avatar)+'</select></label>'+
  '<label class="field full">Trainer motto<textarea name="quote" maxlength="180" rows="3">'+val('quote')+'</textarea></label>'+
- '</div></section>'+
+ '</div></section>'+renderTrainerSheetEditor(p.characterSheet,currentPane==='sheet')+
  '<section class="tabpane" data-pane-body="design" '+(currentPane==='design'?'':'hidden')+'><div class="form-group">'+
  '<label class="field">Theme preset<select name="theme">'+option(Object.keys(themes),p.theme)+'</select></label>'+
  '<label class="field">Background texture<select name="pattern">'+option(patterns,p.pattern)+'</select></label>'+
@@ -135,7 +136,7 @@ function htmlEditor(){
 function render(){
  if(!canEnter||!profileUid){return}
  if(!owner){
-  ROOT.innerHTML='<section class="read-only"><div class="preview-label"><h2>Trainer record</h2><span>Shared with approved Trainers</span></div>'+paintCard(model)+
+  ROOT.innerHTML='<section class="read-only"><div class="preview-label"><h2>Trainer record</h2><span>Shared with approved Trainers</span></div>'+paintCard(model)+renderTrainerSheetViewer(model.characterSheet)+
   '<a class="linkbtn" href="./index.html?tab=trainer">← Return to Trainer Roster</a></section>';
  }else{
   ROOT.innerHTML=htmlEditor();
@@ -161,7 +162,7 @@ function render(){
  }
 }
 function switchPane(next){
- if(!['identity','design','team'].includes(next))return;
+ if(!['identity','sheet','design','team'].includes(next))return;
  currentPane=next;
  for(const node of ROOT.querySelectorAll('[data-pane-body]'))node.hidden=node.dataset.paneBody!==next;
  for(const btn of ROOT.querySelectorAll('[data-pane]')){
@@ -172,7 +173,9 @@ function switchPane(next){
 function collect(form,key){
  if(!key)return;
  const data=new FormData(form);
- if(key==='theme'){
+ if(key.startsWith('sheet')){
+  model.characterSheet=readTrainerSheet(form);
+ } else if(key==='theme'){
   const t=String(data.get('theme')||'ocean');
   model.theme=Object.hasOwn(themes,t)?t:'ocean';
   [model.customPrimary,model.customSecondary]=themes[model.theme];
@@ -192,7 +195,7 @@ function collect(form,key){
  dirty=true;updatePreview();
  const line=ROOT.querySelector('#form-status');if(line)line.textContent='Unsaved changes';
 }
-function updatePreview(){const node=document.getElementById('passport-preview');if(node)node.innerHTML=paintCard(model)}
+function updatePreview(){const node=document.getElementById('passport-preview');if(node)node.innerHTML=paintCard(model);const sheet=document.getElementById('character-sheet-preview');if(sheet)sheet.innerHTML=renderTrainerSheetViewer(model.characterSheet)}
 function feedback(message){const line=ROOT.querySelector('#form-status');if(line)line.textContent=message}
 async function downsize(file,kind){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Please select a JPG, PNG or WebP image.');
@@ -221,6 +224,9 @@ async function saveCard(e){
  e.preventDefault();
  if(!owner||!canEnter||working)return;
  const form=e.target;if(!form.reportValidity())return;
+ const sheetDraft=readTrainerSheet(form),sheetError=validateTrainerSheet(sheetDraft);
+ if(sheetError){switchPane('sheet');feedback(sheetError);return}
+ model.characterSheet=normalizeTrainerSheet(sheetDraft);
  for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','badgeCount','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
   // Field may be in a hidden editor pane; FormData still includes it.
   if(!key.startsWith('team'))collectWithoutRedraw(form,key);
@@ -246,6 +252,7 @@ async function saveCard(e){
   customSecondary:correctHex(model.customSecondary)?model.customSecondary:themes.ocean[1],
   portraitData:safeImage(model.portraitData,150000),
   bannerData:safeImage(model.bannerData,260000),
+  characterSheet:model.characterSheet,
   updatedAt:serverTimestamp()
  };
  if(entry.portraitData.length>150000||entry.bannerData.length>260000){feedback('Image size limit exceeded.');return}
@@ -270,7 +277,7 @@ function subscribe(){
  dirty=false;
  gate(owner?'Preparing your Trainer Card':'Loading Trainer record','Fetching the saved profile.');
  stopCard=onSnapshot(doc(store,'santara_trainer_cards',profileUid),snapshot=>{
-  if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']}}
+  if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,characterSheet:normalizeTrainerSheet(original?.characterSheet),team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']}}
   render();
  },e=>gate('Could not load Trainer Card',errorMessage(e),'<a class="linkbtn" href="./index.html?tab=trainer">Return to roster</a>'));
 }
