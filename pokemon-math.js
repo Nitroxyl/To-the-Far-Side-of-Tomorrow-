@@ -39,6 +39,13 @@ function boundedLevel(level){
 export function dndLevel(level){return Math.ceil(boundedLevel(level)/5);}
 export function proficiencyBonus(level){return 2+Math.floor((dndLevel(level)-1)/4);}
 export function levelDamageMultiplier(level){return 1+boundedLevel(level)/100;}
+// Santara grid: one square is 5 feet. The species' *effective* Speed
+// determines movement; move/ability speed changes can alter that input.
+export function movementSquares(speed){
+ const value=Number(speed);
+ return Math.min(12,Math.max(4,4+Math.floor((Number.isFinite(value)?Math.max(0,value):0)/30)));
+}
+export function movementFeet(speed){return 5*movementSquares(speed);}
 export function maxHpV53(stats,level){
  const hp=Number(stats?.hp);
  if(!Number.isInteger(hp)||hp<1||hp>255)throw Error('A valid Pokémon base HP is required to calculate V5.3 HP.');
@@ -78,6 +85,8 @@ export function combatSummary(mon,rules=null){
   physicalDefenseBand:statBand(s.defense),
   specialDefenseBand:statBand(s.specialDefense),
   effectiveSpeed:s.speed,
+  movementSquares:movementSquares(s.speed),
+  movementFeet:movementFeet(s.speed),
   universalAC:acOverride??(11+pb),
   acOverridden:acOverride!==null,
   universalAcFormula:'11 + proficiency bonus',
