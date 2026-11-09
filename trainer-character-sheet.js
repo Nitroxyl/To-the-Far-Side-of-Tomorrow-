@@ -21,7 +21,7 @@ export const TRAINER_STORY_FIELDS=[
  {key:'partnerStory',label:'Your first Pokémon',prompt:'How did you meet your partner?',max:500}
 ];
 const clean=(x,max)=>String(x??'').trim().slice(0,max);
-const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;':'&quot;',"'":'&#39;'}[c]));
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function blankTrainerSheet(){
  return {
   age:'',occupation:'',beforeJourney:'',motivation:'',goal:'',strength:'',flaw:'',
