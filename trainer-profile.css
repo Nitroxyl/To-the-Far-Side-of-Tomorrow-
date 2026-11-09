@@ -10,3 +10,49 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit}b
 .squad-unit .party-pokemon-art{display:block;height:45px;width:55px;object-fit:contain}
 .squad-name{font-weight:800;font-size:11px;text-align:center}
 .squad-level,.squad-empty{font-size:10px;opacity:.82}
+
+/* Trainer Dossier: character-building remains distinct from Pokémon battle stats. */
+.preview-wrap{position:static}
+.sheet-viewer{margin-top:18px;background:linear-gradient(145deg,#142538,#0e1b29);border:1px solid #385267;border-radius:18px;padding:22px;overflow-wrap:anywhere}
+.sheet-view-header{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:17px}
+.sheet-overline{display:block;color:#91c6c8;font-size:10px;letter-spacing:1.7px;font-weight:850;margin-bottom:3px}
+.sheet-view-header h2{margin:0;font-size:22px;color:#f0f8fb}
+.sheet-status{font-size:11px;color:#c5e3da;background:#203d46;padding:7px 10px;border-radius:20px;text-align:center}
+.sheet-attributes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.sheet-stat{border:1px solid #405b6a;border-radius:12px;text-align:center;background:#132937;padding:11px 5px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.sheet-stat span{font-size:10px;letter-spacing:1px;font-weight:850;color:#a3d2d0}
+.sheet-stat strong{font-size:27px;color:#f5fcff;line-height:1.25}
+.sheet-stat small{font-size:10px;color:#afc6d0}
+.sheet-view-skills{margin-top:19px}
+.sheet-view-skills>strong{font-size:12px;letter-spacing:.6px;color:#cadde3}
+.sheet-skill-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sheet-skill{padding:6px 9px;background:#24434f;border:1px solid #477785;border-radius:20px;color:#daf9f1;font-size:11px;font-weight:750}
+.sheet-muted{color:#a3b4c3;font-size:12px}
+.sheet-view-story{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:19px}
+.sheet-story-item{padding:13px 14px;background:#0b1b2a;border:1px solid #2b485c;border-radius:12px;min-width:0}
+.sheet-story-item strong{color:#8fd9cb;letter-spacing:.3px;font-size:12px}
+.sheet-story-item p{white-space:pre-wrap;color:#e2edf2;font-size:13px;margin:6px 0 0;line-height:1.55}
+.sheet-intro{padding:13px 14px;background:#19333e;border:1px solid #406675;border-radius:12px;margin-bottom:15px}
+.sheet-intro h3{margin:0 0 6px;font-size:16px}
+.sheet-intro p{font-size:12px;margin:0;color:#c7dfe2}
+.sheet-heading{font-size:14px;margin:23px 0 8px}
+.sheet-attribute-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}
+.sheet-stat-input{display:grid;grid-template-columns:40px 1fr;align-items:center;gap:5px 10px;background:#172b39;border:1px solid #39576a;border-radius:11px;padding:12px;color:#e5f4f6}
+.sheet-stat-input strong{color:#8cdbca;font-size:12px}
+.sheet-stat-input span{font-size:13px;font-weight:750}
+.sheet-stat-input select{grid-column:1/-1;width:100%;background:#0f2232;color:#fff;border:1px solid #466579;border-radius:8px;padding:9px}
+.sheet-stat-input small{grid-column:1/-1;color:#a8c0cb;font-size:10px;font-weight:400}
+.sheet-skill-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}
+.sheet-skill-choice{display:flex;gap:8px;align-items:center;padding:10px;background:#172b39;border:1px solid #365166;border-radius:9px;font-size:12px;cursor:pointer}
+.sheet-skill-choice input{accent-color:#5fd3bc;width:16px;height:16px;flex-shrink:0}
+.sheet-story-editor{margin-top:13px}
+.sheet-story-editor textarea{min-height:85px}
+@media(max-width:650px){
+ .sheet-viewer{padding:14px}
+ .sheet-view-header{flex-direction:column}
+ .sheet-view-story{grid-template-columns:1fr}
+ .sheet-stat{padding:9px 3px}
+ .sheet-stat strong{font-size:23px}
+ .sheet-stat small{font-size:9px}
+ .sheet-attribute-editor{grid-template-columns:1fr}
+}
