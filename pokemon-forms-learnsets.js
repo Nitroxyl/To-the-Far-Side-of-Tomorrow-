@@ -200,6 +200,22 @@ export function preEvolutionVariety(currentName,previousSpecies){
  const matching=region&&variants.find(v=>v.name===base+'-'+region);
  return matching?.name||variants.find(v=>v.default)?.name||variants.find(v=>v.name===base)?.name||variants[0]?.name||base;
 }
+// Exact permanent form only: old pre-evolution moves do not become
+// newly earned level-up moves merely because a Pokémon evolves.
+export function exactFormLevelUpLevels(pokemon){
+ const levels={};
+ for(const entry of pokemon?.moves||[]){
+  const key=moveKey(entry?.move?.name);
+  if(!key)continue;
+  for(const detail of entry?.version_group_details||[]){
+   if(detail?.move_learn_method?.name!=='level-up')continue;
+   const n=Math.max(1,Number(detail.level_learned_at)||1);
+   if(n>100)continue;
+   if(levels[key]===undefined||n<levels[key])levels[key]=n;
+  }
+ }
+ return levels;
+}
 export function historicalMoveCatalog(pokemon,ancestors=[]){
  // Do not combine different regional varieties: only this form and its
  // exact pre-evolution lineage contribute moves, across game generations.
@@ -217,6 +233,7 @@ export function historicalMoveCatalog(pokemon,ancestors=[]){
   }
  }
  return {
+  levelUpLevels:exactFormLevelUpLevels(pokemon),
   versionGroup:'all-generations',
   knownMoves:[...methods.keys()].sort(),
   moveMethods:Object.fromEntries([...methods].map(([name,source])=>[name,[...source].sort()])),
