@@ -25,3 +25,6 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 .mega-entry{display:flex;align-items:center;flex-wrap:wrap;gap:10px;border:1px solid #3c5969;border-radius:10px;padding:11px;margin:9px 0}
 .mega-entry .btn{margin-left:auto}.gimmick-tile .field{width:100%}
 @media(max-width:720px){.gimmick-grid{grid-template-columns:1fr}}
+
+/* V5.3 GM editor progression preview */
+#v53-level-preview{grid-column:1/-1;border-left:3px solid var(--teal);padding:9px 13px;background:#15313a;border-radius:8px;margin:0}
