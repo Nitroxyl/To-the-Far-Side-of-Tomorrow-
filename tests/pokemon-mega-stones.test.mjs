@@ -15,6 +15,14 @@ test('Official X/Y and Santara Z require distinct Mega Stones',()=>{
  assert.equal(suggestedMegaStone(c,z),'Charizardite Z');
  assert.equal(suggestedMegaStone({speciesKey:'lucario'},{name:'Mega Lucario',slug:'lucario-mega',baseSpeciesKey:'lucario'}),'Lucarionite');
 });
+test('Mega Baxcalibur suggests Baxcalibrite and still requires it to be held',()=>{
+ const baxcalibur={speciesKey:'baxcalibur',heldItem:''};
+ const mega={slug:'baxcalibur-mega',name:'Mega Baxcalibur',baseSpeciesKey:'baxcalibur'};
+ assert.equal(suggestedMegaStone(baxcalibur,mega),'Baxcalibrite');
+ assert.equal(hasRequiredMegaStone(baxcalibur,'Baxcalibrite'),false);
+ assert.equal(hasRequiredMegaStone({...baxcalibur,heldItem:'Baxcalibrite'},'Baxcalibrite'),true);
+});
+
 test('Mega Evolution cannot activate with no stone or the wrong held item',()=>{
  assert.equal(hasRequiredMegaStone(c,'Charizardite Z'),false);
  assert.equal(hasRequiredMegaStone({...c,heldItem:'Charizardite X'},'Charizardite Z'),false);
