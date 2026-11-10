@@ -14,7 +14,7 @@ const STONES={
  altaria:'Altarianite',banette:'Banettite',absol:'Absolite',
  glalie:'Glalitite',salamence:'Salamencite',metagross:'Metagrossite',
  latias:'Latiasite',latios:'Latiosite',rayquaza:'Rayquazite',
- lopunny:'Lopunnite',garchomp:'Garchompite',lucario:'Lucarionite',
+ lopunny:'Lopunnite',garchomp:'Garchompite',lucario:'Lucarionite',baxcalibur:'Baxcalibrite',
  abomasnow:'Abomasite',gallade:'Galladite',audino:'Audinite',
  diancie:'Diancite',slowking:'Slowkingite',raichu:'Raichunite',
  dragonite:'Dragoninite',starmie:'Starminite'
