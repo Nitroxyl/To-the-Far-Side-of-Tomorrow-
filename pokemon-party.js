@@ -8,7 +8,7 @@ import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=sa
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
-import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js';
+import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js?v=baxcalibrite-20261111-1';
 import {customAbilityScope,validCustomAbilityScope,eligibleAbilityNames,legalAbility,officialFamilyMoveCatalog,officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,applySantaraLearnset,moveKey} from './pokemon-forms-learnsets.js?v=lucario-rework-20261111-1';
 
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
