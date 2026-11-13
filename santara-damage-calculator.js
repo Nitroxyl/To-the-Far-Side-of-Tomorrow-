@@ -408,6 +408,18 @@ async function reloadData(){
 host.addEventListener('click',e=>{
   if(e.target.closest('#damage-run'))runCalculation();
   if(e.target.closest('#damage-reload'))reloadData();
+  for(const side of ['a','d']){
+   if(e.target.closest('#'+side+'-mega-stone')){
+    const source=sourceFor(side),form=selectedMegaForm(side);
+    if(!form||!(gm||playerProgression.mega))return;
+    el(side+'-item').value=requiredStoneFor(source,form);
+    refreshMegaControls(side,true);
+    el(side+'-mega').checked=!el(side+'-mega').disabled;
+    syncMegaAbility(side);
+    runCalculation();
+    return;
+   }
+  }
   if(e.target.closest('#damage-google'))signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>msg(e.message));
 });
 function updateTeraVisibility(side){
@@ -417,12 +429,16 @@ function updateTeraVisibility(side){
 host.addEventListener('change',e=>{
   if(e.target.id==='a-choice')refreshSide('a');
   if(e.target.id==='d-choice')refreshSide('d');
-  if(['a-mega','d-mega'].includes(e.target.id)){
-    const side=e.target.id[0],source=sourceFor(side);
-    if(source?.megaForm){
-      el(side+'-ability').value=e.target.checked?source.megaForm.ability:source.ability||source.abilities?.[0]||'';
-      if(side==='d')el('damage-chorus').checked=e.target.checked&&canon(source.megaForm.ability)==='aurorachorus';
-    }
+  if(['a-mega','d-mega'].includes(e.target.id))syncMegaAbility(e.target.id[0]);
+  if(['a-mega-form','d-mega-form'].includes(e.target.id)){
+    const side=e.target.id[0];
+    refreshMegaControls(side);
+    syncMegaAbility(side);
+  }
+  if(['a-item','d-item'].includes(e.target.id)){
+    const side=e.target.id[0];
+    refreshMegaControls(side,true);
+    syncMegaAbility(side);
   }
   if(['a-tera','d-tera'].includes(e.target.id))updateTeraVisibility(e.target.id[0]);
   if(e.target.closest('#calc-app')&&el('damage-results'))runCalculation();
@@ -430,6 +446,10 @@ host.addEventListener('change',e=>{
 let inputRecalc=null;
 host.addEventListener('input',e=>{
   if(['a-search','d-search'].includes(e.target.id)){filterPokemon(e.target.id[0]);return;}
+  if(['a-item','d-item'].includes(e.target.id)){
+    refreshMegaControls(e.target.id[0],true);
+    syncMegaAbility(e.target.id[0]);
+  }
   if(!e.target.matches('input[type=text],input[type=number],input:not([type]),select'))return;
   if(!el('damage-results'))return;
   clearTimeout(inputRecalc);
