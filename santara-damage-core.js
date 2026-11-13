@@ -95,6 +95,7 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
   const poke=new calc.Pokemon(gen,official?.name||name,options);
   const hpPercent=bound(settings.hpPercent,1,100,100);
   poke.originalCurHP=Math.max(1,Math.ceil(poke.rawStats.hp*hpPercent/100));
+  if(id(ability)==='foretoldruin')poke.boosts.atk=Math.max(0,poke.boosts.atk||0);
   if(id(ability)==='bastionfurnace'){
     poke.boosts.def=Math.max(0,poke.boosts.def||0);
     poke.boosts.spd=Math.max(0,poke.boosts.spd||0);
@@ -147,11 +148,15 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   customMoves=[],customAbilities=[],weather='Auto',terrain='',gameType='Singles',
   reflect=false,lightScreen=false,auroraVeil=false,auroraChorusActive=true,
   helpingHand=false,critical=false,hits=0,exposed=false,
-  siegeBoosted=false,protection=false}={}){
+  siegeBoosted=false,protection=false,allowUnregisteredCustomMoves=true}={}){
   if(!calc?.Generations?.get||!calc?.calculate)throw Error('Pokémon damage engine unavailable. Reload when connected.');
   const gen=calc.Generations.get(9);
   const a=makePokemon(calc,gen,attacker,attackerSettings,customAbilities);
   const d=makePokemon(calc,gen,defender,defenderSettings,customAbilities);
+  const catalogued=customMoveDefinition(moveName,customMoves);
+  const equipped=Array.isArray(attacker?.moves)&&attacker.moves.some(x=>id(x)===id(moveName));
+  if(!allowUnregisteredCustomMoves&&!gen.moves.get(id(moveName))&&!catalogued&&!equipped)
+    throw Error('This custom move has not been unlocked or equipped yet.');
   const chosen=makeMove(calc,gen,moveName,customMoves,a.ability,hits,critical);
   const warnings=[...a.warnings,...d.warnings],notes=[];
   for(const [side,p] of [['Attacker',a],['Defender',d]]){
