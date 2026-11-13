@@ -47,44 +47,59 @@ function selectChoices(selected){
 }
 function natureOptions(value){return natureNames.map(x=>option(x,x,value||'Serious')).join('');}
 function typeOptions(value){return TYPE_NAMES.map(x=>option(x,x,value)).join('');}
+function toggleMarkup(id,label){
+  return '<label class="calc-toggle" for="'+id+'"><input id="'+id+'" type="checkbox"><span>'+label+'</span></label>';
+}
 function sideMarkup(side,title,selected){
-  return '<section class="panel"><h2>'+title+'</h2>'+
+  return '<section class="panel calc-combatant"><h2>'+title+'</h2>'+
   '<label class="field">Pokémon<select id="'+side+'-choice">'+selectChoices(selected)+'</select></label>'+
-  '<div class="form-grid" style="margin-top:15px">'+
+  '<div class="form-grid" style="margin-top:14px">'+
   '<label class="field">Level<input id="'+side+'-level" type="number" min="1" max="100" value="50"></label>'+
   '<label class="field">Nature<select id="'+side+'-nature">'+natureOptions('Serious')+'</select></label>'+
   '<label class="field full">Ability<input id="'+side+'-ability" list="calc-ability-list" placeholder="Ability"></label>'+
   '<label class="field full">Held item<input id="'+side+'-item" list="calc-item-list" placeholder="None"></label>'+
   '<label class="field">HP remaining (%)<input id="'+side+'-hp" type="number" min="1" max="100" value="100"></label>'+
   '<label class="field">Status<select id="'+side+'-status">'+
-  ['None','Burned','Paralyzed','Poisoned','Badly poisoned','Asleep','Frozen'].map(x=>option(x,x,'None')).join('')+'</select></label>'+
-  '<label class="field full"><input id="'+side+'-mega" type="checkbox"> Preview assigned Mega Evolution</label>'+
-  '<label class="field"><input id="'+side+'-tera" type="checkbox"> Terastallized</label>'+
-  '<label class="field">Tera type<select id="'+side+'-teratype">'+typeOptions('Normal')+'</select></label>'+
-  '<label class="field full"><input id="'+side+'-dmax" type="checkbox"> Dynamaxed (HP preview)</label></div>'+
-  '<details class="calc-advanced"><summary>EVs and stat stages</summary><p class="calc-muted">Every IV is internally fixed to 31. EVs start at 0, with normal 252-per-stat and 510-total limits.</p>'+
+    ['None','Burned','Paralyzed','Poisoned','Badly poisoned','Asleep','Frozen'].map(x=>option(x,x,'None')).join('')+
+  '</select></label>'+
+  '<div class="calc-transformations"><span>Battle transformations</span>'+
+  '<div class="calc-toggle-grid">'+
+  toggleMarkup(side+'-mega','Mega')+
+  toggleMarkup(side+'-tera','Tera')+
+  toggleMarkup(side+'-dmax','Dynamax')+'</div>'+
+  '<label class="field calc-tera-type" id="'+side+'-tera-wrap" hidden>Tera type<select id="'+side+'-teratype">'+typeOptions('Normal')+'</select></label>'+
+  '</div></div>'+
+  '<details class="calc-advanced"><summary>EVs and stat stages</summary><p class="calc-muted">Every IV is fixed to 31. EVs default to 0 (252 per stat, 510 total).</p>'+
   '<div class="calc-ev">'+STATS.map(([key,label])=>'<label class="field">'+label+' EV<input id="'+side+'-ev-'+key+'" type="number" min="0" max="252" value="0"></label>').join('')+'</div>'+
   '<div class="calc-ev">'+[['atk','Attack'],['def','Defense'],['spa','Sp. Atk'],['spd','Sp. Def']].map(([key,label])=>'<label class="field">'+label+' stage<input id="'+side+'-boost-'+key+'" type="number" min="-6" max="6" value="0"></label>').join('')+'</div></details>'+
   '</section>';
 }
-function fieldMarkup() {
-  return '<section class="panel"><h2>Move and battlefield</h2><div class="form-grid">'+
-  '<label class="field full">Move<input id="damage-move" list="calc-move-list" placeholder="Flamethrower" required></label>'+
-  '<label class="field">Battle mode<select id="damage-mode">'+option('Singles','Singles','Doubles')+option('Doubles','Doubles','Doubles')+'</select></label>'+
-  '<label class="field">Weather<select id="damage-weather">'+
-  ['Auto','Clear','Sun','Rain','Sand','Snow','Calamitous Sun','Royal Tempest'].map(x=>option(x,x,'Auto')).join('')+'</select></label>'+
-  '<label class="field">Terrain<select id="damage-terrain">'+
-  ['','Electric','Grassy','Misty','Psychic'].map(x=>option(x,x||'None','')).join('')+'</select></label>'+
-  '<label class="field">Number of hits<input id="damage-hits" type="number" min="0" max="10" value="0"><small class="calc-muted">0 = move default</small></label>'+
-  '<label class="field full"><input id="damage-crit" type="checkbox"> Critical hit</label>'+
-  '<label class="field"><input id="damage-reflect" type="checkbox"> Defender Reflect</label>'+
-  '<label class="field"><input id="damage-screen" type="checkbox"> Defender Light Screen</label>'+
-  '<label class="field"><input id="damage-veil" type="checkbox"> Defender Aurora Veil</label>'+
-  '<label class="field"><input id="damage-help" type="checkbox"> Attacker Helping Hand</label>'+
-  '<label class="field full"><input id="damage-exposed" type="checkbox"> Defender Exposed (System Override)</label>'+
-  '</div><div class="calc-actions" style="margin-top:20px"><button class="btn primary" id="damage-run" type="button">Calculate damage</button><button class="btn" id="damage-reload" type="button">Reload Pokémon</button></div>'+
-  '<p class="calc-muted">Uses Pokémon generation 9 damage, with Santara overrides where implemented. Move accuracy, positioning, switching and residual turns are resolved separately during play.</p>'+
-  '</section>';
+function quickMarkup(){
+  return '<section class="panel calc-quick"><div class="calc-quick-head"><h2>Attack preview</h2><span class="calc-muted">Standard Pokémon damage</span></div>'+
+    '<div class="calc-quick-grid">'+
+    '<label class="field calc-field-move">Move<input id="damage-move" list="calc-move-list" placeholder="e.g. Flamethrower" required></label>'+
+    '<label class="field">Weather<select id="damage-weather">'+
+      ['Auto','Clear','Sun','Rain','Sand','Snow','Calamitous Sun','Royal Tempest'].map(x=>option(x,x,'Auto')).join('')+
+    '</select></label>'+
+    '<label class="field">Battle mode<select id="damage-mode">'+option('Singles','Singles','Doubles')+option('Doubles','Doubles','Doubles')+'</select></label>'+
+    '<div class="calc-actions"><button class="btn primary" id="damage-run" type="button">Calculate</button><button class="btn" id="damage-reload" type="button" title="Reload saved Pokémon">↻</button></div>'+
+    '</div></section>'+
+    '<div id="damage-results" class="calc-sticky-result" role="status" aria-live="polite"></div>';
+}
+function fieldMarkup(){
+  return '<section class="panel calc-options"><details>'+
+    '<summary>Advanced battlefield conditions <span class="calc-muted">— Terrain, screens, critical hits and more</span></summary>'+
+    '<div class="calc-option-grid">'+
+    '<label class="field">Terrain<select id="damage-terrain">'+['','Electric','Grassy','Misty','Psychic'].map(x=>option(x,x||'None','')).join('')+'</select></label>'+
+    '<label class="field">Number of hits<input id="damage-hits" type="number" min="0" max="10" value="0"><small class="calc-muted">0 = move default</small></label>'+
+    toggleMarkup('damage-crit','Critical hit')+
+    toggleMarkup('damage-reflect','Reflect')+
+    toggleMarkup('damage-screen','Light Screen')+
+    toggleMarkup('damage-veil','Aurora Veil')+
+    toggleMarkup('damage-help','Helping Hand')+
+    toggleMarkup('damage-exposed','Exposed')+
+    '</div><p class="calc-muted">The calculator previews damage only; accuracy, movement, turn restrictions and residual effects are resolved separately.</p>'+
+    '</details></section>';
 }
 function el(key){return document.getElementById(key);}
 function readStr(key){return el(key)?.value||'';}
@@ -113,6 +128,7 @@ function refreshSide(side) {
   el(side+'-mega').checked=!!source.megaActive;
   el(side+'-mega').disabled=!source.megaForm;
   el(side+'-tera').checked=!!source.teraActive;
+  updateTeraVisibility(side);
   el(side+'-teratype').value=titleType(source.teraType||source.types?.[0]||'Normal');
   el(side+'-dmax').checked=!!source.dynamaxTurns;
   for(const [key] of STATS)el(side+'-ev-'+key).value='0';
@@ -127,22 +143,25 @@ function refreshSide(side) {
   }
 }
 function showResult(res) {
-  const pct=res.maxPercent>0?Math.min(100,res.maxPercent):0;
+  const pct=Math.min(100,Math.max(0,res.maxPercent||0));
   const notices=res.notes.map(s=>'<div class="calc-note">'+escape(s)+'</div>').join('');
   const warnings=res.warnings.map(s=>'<div class="calc-warning">'+escape(s)+'</div>').join('');
-  const ko=res.koChance===100?'Guaranteed OHKO at current HP':res.koChance===0?'No single-hit OHKO':res.koChance.toFixed(1)+'% single-hit KO chance (sampled rolls)';
-  el('damage-results').innerHTML='<section class="calc-result" aria-live="polite">'+
-    '<span class="eyebrow">DAMAGE RANGE</span><p><strong>'+res.min+'–'+res.max+' HP</strong></p>'+
-    '<p><b>'+res.minPercent.toFixed(1)+'–'+res.maxPercent.toFixed(1)+'%</b> of '+res.defenderHP+' max HP · '+ko+'</p>'+
+  const ko=res.koChance===100?'Guaranteed OHKO':res.koChance===0?'No OHKO':res.koChance.toFixed(1)+'% OHKO chance';
+  const more=res.warnings.length?' · '+res.warnings.length+' manual check'+(res.warnings.length===1?'':'s'):'';
+  el('damage-results').innerHTML='<section class="calc-result">'+
+    '<div class="calc-result-main"><div><span class="eyebrow">ESTIMATED DAMAGE</span>'+
+    '<div class="calc-result-value">'+res.min+'–'+res.max+' HP</div>'+
+    '<div class="calc-result-sub">'+res.minPercent.toFixed(1)+'–'+res.maxPercent.toFixed(1)+'% of target max HP ('+res.defenderHP+')</div>'+
+    '</div><div class="calc-result-ko">'+ko+'<div class="calc-result-sub">Current HP: '+res.currentDefHP+'/'+res.defenderHP+'</div></div></div>'+
     '<div class="meter"><span style="width:'+pct.toFixed(2)+'%"></span></div>'+
+    '<details class="calc-result-details"><summary>Damage details'+more+'</summary>'+
     '<div class="calc-pills"><span class="chip">'+escape(res.meta.category)+' · '+escape(res.meta.type)+'</span>'+
     '<span class="chip">BP '+escape(res.basePower)+'</span><span class="chip">Accuracy '+escape(res.accuracy??'—')+'</span>'+
     '<span class="chip">'+escape(res.weather)+' weather</span>'+
-    '<span class="chip">'+escape(res.meta.hits)+' hit(s)</span>'+
-    '<span class="chip">HP now '+res.currentDefHP+'/'+res.defenderHP+'</span></div>'+
-    '<p class="calc-muted">Cartridge-style random damage rolls. A hit is assumed; accuracy and the chance of landing it are not included in KO chance.</p>'+
+    '<span class="chip">'+escape(res.meta.hits)+' hit(s)</span></div>'+
+    '<p class="calc-muted">The OHKO estimate assumes the attack connects and excludes accuracy and other turn effects.</p>'+
     (res.fullDescription?'<p class="calc-muted">'+escape(res.fullDescription)+'</p>':'')+
-    warnings+notices+'</section>';
+    warnings+notices+'</details></section>';
 }
 function runCalculation() {
   try{
@@ -168,8 +187,8 @@ function draw() {
   const chosenA=(linked&&byKey.has('r:'+linked)?'r:'+linked:null)||saved||'o:charizard';
   const chosenB=choices.find(x=>x.kind==='registered'&&x.key!==chosenA)?.key||'o:tyranitar';
   const list=(values)=>values.map(x=>'<option value="'+escape(x)+'"></option>').join('');
-  host.innerHTML='<div class="calc-grid">'+sideMarkup('a','Attacker',chosenA)+sideMarkup('d','Defender',chosenB)+
-    '</div><div style="height:18px"></div>'+fieldMarkup()+'<div id="damage-results" style="margin-top:18px"></div>'+
+  host.innerHTML=quickMarkup()+'<div class="calc-grid">'+sideMarkup('a','Attacker',chosenA)+sideMarkup('d','Defender',chosenB)+
+    '</div>'+fieldMarkup()+
     '<datalist id="calc-move-list">'+list(moves)+'</datalist><datalist id="calc-ability-list">'+list(abilities)+'</datalist>'+
     '<datalist id="calc-item-list">'+list(items)+'</datalist>';
   refreshSide('a');refreshSide('d');runCalculation();
@@ -207,6 +226,10 @@ host.addEventListener('click',e=>{
   if(e.target.closest('#damage-reload'))reloadData();
   if(e.target.closest('#damage-google'))signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>msg(e.message));
 });
+function updateTeraVisibility(side){
+  const wrap=el(side+'-tera-wrap'),toggle=el(side+'-tera');
+  if(wrap&&toggle)wrap.hidden=!toggle.checked;
+}
 host.addEventListener('change',e=>{
   if(e.target.id==='a-choice')refreshSide('a');
   if(e.target.id==='d-choice')refreshSide('d');
@@ -214,6 +237,15 @@ host.addEventListener('change',e=>{
     const side=e.target.id[0],source=sourceFor(side);
     if(source?.megaForm)el(side+'-ability').value=e.target.checked?source.megaForm.ability:source.ability||source.abilities?.[0]||'';
   }
+  if(['a-tera','d-tera'].includes(e.target.id))updateTeraVisibility(e.target.id[0]);
+  if(e.target.closest('#calc-app')&&el('damage-results'))runCalculation();
+});
+let inputRecalc=null;
+host.addEventListener('input',e=>{
+  if(!e.target.matches('input[type=text],input[type=number],input:not([type]),select'))return;
+  if(!el('damage-results'))return;
+  clearTimeout(inputRecalc);
+  inputRecalc=setTimeout(runCalculation,280);
 });
 host.addEventListener('submit',async e=>{
   if(e.target.id!=='damage-login')return;
