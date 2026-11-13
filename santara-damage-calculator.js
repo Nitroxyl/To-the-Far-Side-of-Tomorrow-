@@ -1,8 +1,9 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import {getFirestore,getDocs,collection,query,where} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import {getFirestore,getDocs,getDoc,doc,collection,query,where} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {applyMegaOverlays} from './pokemon-mega-assignments.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
+import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
 import {computeDamage,titleType} from './santara-damage-core.js?v=custom-20261114-4';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
@@ -12,7 +13,7 @@ const canon=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const option=(key,label,selected)=>'<option value="'+escape(key)+'"'+(key===selected?' selected':'')+'>'+escape(label)+'</option>';
 const STATS=[['hp','HP'],['atk','Attack'],['def','Defense'],['spa','Sp. Atk'],['spd','Sp. Def'],['spe','Speed']];
 const TYPE_NAMES=['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison','Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
-let app,auth,store,session,choices=[],byKey=new Map(),moves=[],abilities=[],items=[],natureNames=[],customMoves=[],customAbilities=[],loaded=false;
+let app,auth,store,session,choices=[],byKey=new Map(),moves=[],abilities=[],items=[],natureNames=[],customMoves=[],customAbilities=[],loaded=false,playerProgression=readTrainerUnlocks();
 function msg(text){feedback.textContent=text||'';}
 function engine(){return window.calc?.Generations?.get?window.calc:null;}
 function signin(){
@@ -166,7 +167,7 @@ function quickMarkup(){
     '<div class="calc-quick-grid">'+
     '<label class="field calc-field-move">Move<input id="damage-move" list="calc-move-list" placeholder="e.g. Flamethrower" required></label>'+
     '<label class="field">Weather<select id="damage-weather">'+
-      (gm?['Auto','Clear','Sun','Rain','Sand','Snow','Calamitous Sun','Royal Tempest']:['Auto','Clear','Sun','Rain','Sand','Snow']).map(x=>option(x,x,'Auto')).join('')+
+      ['Auto','Clear','Sun','Rain','Sand','Snow',...SPECIAL_WEATHER.filter(name=>gm||unlockedWeather(playerProgression,name))].map(x=>option(x,x,'Auto')).join('')+
     '</select></label>'+
     '<label class="field">Battle mode<select id="damage-mode">'+option('Singles','Singles','Doubles')+option('Doubles','Doubles','Doubles')+'</select></label>'+
     '<div class="calc-actions"><button class="btn primary" id="damage-run" type="button">Calculate</button><button class="btn" id="damage-reload" type="button" title="Reload saved Pokémon">↻</button></div>'+
@@ -243,7 +244,7 @@ function refreshSide(side) {
 }
 function showResult(res) {
   const pct=Math.min(100,Math.max(0,res.maxPercent||0));
-  const spoilerWeather=!gm&&['Calamitous Sun','Royal Tempest'].includes(res.weather);
+  const spoilerWeather=!gm&&SPECIAL_WEATHER.includes(res.weather)&&!unlockedWeather(playerProgression,res.weather);
   const notices=spoilerWeather?'<div class="calc-note">An exclusive weather effect is active. Ask the GM for its details.</div>':res.notes.map(s=>'<div class="calc-note">'+escape(s)+'</div>').join('');
   const warnings=res.warnings.map(s=>'<div class="calc-warning">'+escape(s)+'</div>').join('');
   const ko=res.koChance===100?'Guaranteed OHKO':res.koChance===0?'No OHKO':res.koChance.toFixed(1)+'% OHKO chance';
@@ -263,12 +264,24 @@ function showResult(res) {
     (!spoilerWeather&&res.fullDescription?'<p class="calc-muted">'+escape(res.fullDescription)+'</p>':'')+
     warnings+notices+'</details></section>';
 }
+function checkedSide(side){
+ const settings=readSide(side);
+ if(gm||!settings.ability)return settings;
+ const requested=canon(settings.ability);
+ const original=sourceFor(side);
+ const assigned=canon((settings.mega&&original?.megaForm?.ability)||original?.ability||original?.abilities?.[0]);
+ if(!engine().Generations.get(9).abilities.get(requested) &&
+    !customAbilities.some(a=>canon(a.name)===requested) && requested!==assigned){
+   throw Error('That custom ability has not been revealed or assigned to this Trainer.');
+ }
+ return settings;
+}
 function runCalculation() {
   try{
     const attacker=sourceFor('a'),defender=sourceFor('d');
     const result=computeDamage(engine(),{
       attacker,defender,moveName:readStr('damage-move'),
-      attackerSettings:readSide('a'),defenderSettings:readSide('d'),
+      attackerSettings:checkedSide('a'),defenderSettings:checkedSide('d'),
       customMoves,customAbilities,allowUnregisteredCustomMoves:gm,
       weather:readStr('damage-weather'),terrain:readStr('damage-terrain'),
       gameType:readStr('damage-mode'),reflect:el('damage-reflect').checked,
@@ -309,6 +322,7 @@ async function reloadData(){
       getDocs(collection(store,'santara_custom_abilities')),getDocs(collection(store,'santara_species_overrides'))
     ]);
     if(!session)return;
+    playerProgression=gm?readTrainerUnlocks():readTrainerUnlocks((await getDoc(doc(store,'santara_trainer_gimmicks',session.uid))).data());
     const records=applyMegaOverlays(p.docs.map(d=>({id:d.id,...d.data()})),
       Object.fromEntries(a.docs.map(d=>[d.id,d.data()])));
     const presets=await gmContentPresets();
@@ -316,9 +330,12 @@ async function reloadData(){
       .then(snapshot=>snapshot.docs.map(d=>({slug:d.id,...d.data()})))
       .catch(error=>{console.warn('GM Mega preview collection unavailable:',error.message);return [];}):[];
     customMoves=combineByName(presets.moves,m.docs.map(d=>({slug:d.id,...d.data()})));
+    if(!gm)customMoves=visiblePlayerContent('moves',customMoves,records,playerProgression);
     customAbilities=combineByName(presets.abilities,ab.docs.map(d=>({slug:d.id,...d.data()})));
+    if(!gm)customAbilities=visiblePlayerContent('abilities',customAbilities,records,playerProgression);
     const allCustomSpecies=combineByName(presets.species,c.docs.map(d=>({slug:d.id,...d.data()})));
-    const customSpecies=gm?allCustomSpecies:playerVisibleCustomSpecies(allCustomSpecies,records);
+    const customSpecies=gm?allCustomSpecies:playerVisibleCustomSpecies(
+      visiblePlayerContent('species',allCustomSpecies,records,playerProgression),records,playerProgression);
     const megaForms=combineByName(presets.megas,liveMega);
     const gen=engine().Generations.get(9);
     choices=makeChoices(gen,records,customSpecies,megaForms);
