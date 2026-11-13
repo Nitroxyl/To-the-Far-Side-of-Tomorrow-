@@ -1,3 +1,4 @@
+import {knownMove,moveProperties,recognizedCustomAbility,setupSpecialEffects,additionalDamageEffects,afterDamageEffects} from './santara-damage-rules.js';
 // Santara V6 damage adapter. Read-only: never modifies a saved Pokemon.
 // Underlying cartridge rules: @smogon/calc 0.12.0 (Generation 9).
 export const STAT_IDS = ['hp','atk','def','spa','spd','spe'];
@@ -100,35 +101,39 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
   }
   return {pokemon:poke,name,ability,isCustom,types,hpPercent,warnings,form};
 }
-export function makeMove(calc,gen,moveName,customMoves=[],attackAbility='',forcedHits=0,critical=false) {
+export function makeMove(calc,gen,moveName,customMoves=[],attackAbility='',forcedHits=0,critical=false){
   const name=String(moveName||'').trim();
   if(!name)throw Error('Select a damaging move.');
   const custom=customMoveDefinition(name,customMoves);
   const official=gen.moves.get(id(name));
-  if(!official&&!custom)throw Error('Move '+name+' is not recognized. Register it in the custom move catalogue first.');
-  const info=custom||official;
-  if(info.category==='Status')throw Error(name+' is a status move, not a damaging attack.');
-  const bp=Number(custom?.power ?? official?.basePower);
+  const preset=knownMove(name);
+  if(!official&&!custom&&!preset)throw Error('Move '+name+' is not recognized. Register it in the custom move catalogue first.');
+  const attributes=moveProperties(name,custom);
+  const bp=Number(attributes.power ?? official?.basePower);
+  const category=attributes.category||official?.category;
+  const type=titleType(attributes.type||official?.type);
+  if(category==='Status')throw Error(name+' is a status move, not a damaging attack.');
   if(!Number.isFinite(bp)||bp<=0)throw Error(name+' has variable or zero Base Power. This move needs a specific power rule before calculating.');
-  const overrides=custom?{
-    name:custom.name,type:titleType(custom.type),
-    category:custom.category,basePower:bp,
-    accuracy:custom.accuracy??100,
-    target:custom.target||(['infernalsweep','schradesend'].includes(id(custom.name))?'allAdjacentFoes':'normal'),priority:0,
-    flags:{contact:custom.contact?1:0, ...Object.fromEntries((custom.traits||[]).map(trait=>[trait,1]))}
+  const overrideRequired=!!(custom||preset);
+  const overrides=overrideRequired?{
+    name:custom?.name||preset?.name||official?.name,
+    type,category,basePower:bp,accuracy:attributes.accuracy??official?.accuracy??100,
+    target:attributes.target||official?.target||'normal',
+    flags:{...(official?.flags||{}),...attributes.flags},
+    ...(attributes.recoil?{recoil:attributes.recoil}:{}),
+    ...(attributes.willCrit?{willCrit:true}:{})
   }:undefined;
-  const multihit=official?.multihit;
+  const multihit=custom?.multihit||official?.multihit;
+  if(overrides&&multihit)overrides.multihit=multihit;
   const maxHits=Array.isArray(multihit)?multihit[1]:typeof multihit==='number'?multihit:1;
   const perfected=id(attackAbility)==='perfectedninjutsu';
   const count=Number(forcedHits)>0?bound(forcedHits,1,10,1):(perfected?maxHits:undefined);
   const move=new calc.Move(gen,official?.name||name,{
-    overrides,ability:perfected?'Technician':attackAbility,
-    hits:count,isCrit:!!critical
+    overrides,ability:perfected?'Skill Link':attackAbility,
+    hits:count,isCrit:!!critical||!!attributes.willCrit
   });
-  // Skill Link + Technician combination: the calculator gets max hits while
-  // treating the attacker's effective ability as Technician, preserving its BP rules.
-  if(perfected && maxHits>1 && !forcedHits)move.hits=maxHits;
-  return {move,custom,basePower:bp,accuracy:custom?.accuracy??official?.accuracy??null};
+  if(perfected&&maxHits>1&&!forcedHits)move.hits=maxHits;
+  return {move,custom,preset,basePower:bp,accuracy:attributes.accuracy??official?.accuracy??null};
 }
 function damageRolls(value) {
   if(typeof value==='number')return [value];
@@ -140,68 +145,75 @@ function damageRolls(value) {
 function safeDescription(result){try{return result.fullDesc();}catch{return '';}}
 export function computeDamage(calc,{attacker,defender,moveName,attackerSettings={},defenderSettings={},
   customMoves=[],customAbilities=[],weather='Auto',terrain='',gameType='Singles',
-  reflect=false,lightScreen=false,auroraVeil=false,helpingHand=false,critical=false,hits=0,
-  exposed=false}={}) {
+  reflect=false,lightScreen=false,auroraVeil=false,auroraChorusActive=true,
+  helpingHand=false,critical=false,hits=0,exposed=false,
+  siegeBoosted=false,protection=false}={}){
   if(!calc?.Generations?.get||!calc?.calculate)throw Error('Pokémon damage engine unavailable. Reload when connected.');
   const gen=calc.Generations.get(9);
   const a=makePokemon(calc,gen,attacker,attackerSettings,customAbilities);
   const d=makePokemon(calc,gen,defender,defenderSettings,customAbilities);
   const chosen=makeMove(calc,gen,moveName,customMoves,a.ability,hits,critical);
   const warnings=[...a.warnings,...d.warnings],notes=[];
-  if(a.isCustom && !['perfectedninjutsu','rootaccess','kingdomsend','tempestcrown','moltenedge','bastionfurnace','apexpredator','swordofruin','aurorachorus'].includes(id(a.ability)))warnings.push('Attacker ability '+a.ability+' is not modeled.');
-  if(d.isCustom && !['perfectedninjutsu','rootaccess','kingdomsend','tempestcrown','moltenedge','bastionfurnace','apexpredator','swordofruin','aurorachorus'].includes(id(d.ability)))warnings.push('Defender ability '+d.ability+' is not modeled.');
-  let activeWeather=weather;
-  if(weather==='Auto'){
-    activeWeather=([a,d].some(p=>id(p.ability)==='kingdomsend'))?'Calamitous Sun':
-      ([a,d].some(p=>id(p.ability)==='tempestcrown'))?'Royal Tempest':'Clear';
+  for(const [side,p] of [['Attacker',a],['Defender',d]]){
+    const abilityId=id(p.ability);
+    const official=gen.abilities.get(abilityId);
+    if(p.ability&&!official&&!recognizedCustomAbility(p.ability)){
+      warnings.push(side+' ability '+p.ability+' has no encoded damage rule; resolve its effects manually.');
+    }
   }
-  const standardWeather=activeWeather==='Calamitous Sun'?'Sun':
-    activeWeather==='Royal Tempest'?'':activeWeather==='Clear'?'':activeWeather;
-  const field=new calc.Field({
-    weather:standardWeather||undefined,terrain:terrain||undefined,gameType,
-    isSwordOfRuin:id(a.ability)==='swordofruin'&&id(d.ability)!=='swordofruin',
-    attackerSide:{isHelpingHand:helpingHand},
-    defenderSide:{isReflect:reflect&&id(moveName)!=='schradebreaker',isLightScreen:lightScreen&&id(moveName)!=='schradebreaker',
-      isAuroraVeil:(auroraVeil||id(d.ability)==='aurorachorus')&&id(moveName)!=='schradebreaker'}
+  const state=setupSpecialEffects({
+    attacker:a,defender:d,move:chosen.move,weather,exposed,auroraChorusActive,
+    siegeBoosted,protection,gameType
   });
-  if(chosen.custom?.description?.match(/charge|turn to charge/i))warnings.push('Charge-turn restrictions are not simulated; this result is the damaging turn only.');
-  if(chosen.custom?.description)warnings.push('Custom move secondary effects, recoil and once-per-battle restrictions are resolved at the table; this result is damage only.');
-  if(id(moveName)==='psycannon')notes.push('Psycannon: apply the user’s Speed drop after the attack.');
-  if(id(moveName)==='schradebreaker'&&(reflect||lightScreen||auroraVeil))notes.push('Schradebreaker destroys screens before damage.');
-  const match=matchup(gen,chosen.move.type,d.pokemon.teraType?[d.pokemon.teraType]:d.pokemon.types);
-  let extra=1;
-  if(activeWeather==='Calamitous Sun'){
-    if(chosen.move.type==='Water'){extra=0;notes.push('Calamitous Sun blocks Water attacks.');}
-    if(chosen.move.type==='Fire'&&match>0&&match<1){extra*=1/match;notes.push('Kingdom’s End neutralizes Fire resistances.');}
-  }
-  if(activeWeather==='Royal Tempest'&&chosen.move.type==='Electric'){extra*=1.3;notes.push('Royal Tempest: Electric damage ×1.3.');}
-  if(id(a.ability)==='moltenedge'&&(chosen.move.type==='Fire'||!!chosen.move.flags?.slicing)){
-    extra*=1.3;notes.push('Molten Edge: damage ×1.3.');}
-  if(id(a.ability)==='bastionfurnace'&&a.hpPercent<=50&&['Fire','Psychic'].includes(chosen.move.type)){
-    extra*=1.3;notes.push('Bastion Furnace: low-HP damage ×1.3.');}
-  if(id(d.ability)==='bastionfurnace'&&d.hpPercent>50&&match>1){
-    extra*=0.75;notes.push('Bastion Furnace: super-effective damage ×0.75.');}
-  if(id(a.ability)==='apexpredator'&&chosen.move.category==='Physical'&&d.hpPercent<100){
-    extra*=1.3;notes.push('Apex Predator: injured target physical damage ×1.3.');}
-  if(exposed&&['Normal','Electric'].includes(chosen.move.type)){
-    extra*=1.2;notes.push('Exposed: Normal/Electric damage ×1.2 (provisional).');}
-  if(id(a.ability)==='perfectedninjutsu')notes.push('Perfected Ninjutsu: Technician damage and maximum multi-hit count.');
-  if(activeWeather==='Calamitous Sun'||activeWeather==='Royal Tempest'||extra!==1)notes.push('Custom multipliers apply after cartridge damage rolls; game-internal rounding may differ by 1 HP.');
-  if(a.form.mega&&attackerSettings.tera)warnings.push('Mega + Tera is a Santara combination; official mechanics may not cover every interaction.');
+  notes.push(...state.notes);
+  warnings.push(...state.warnings);
+  if(id(a.ability)==='systemoverride'&&exposed)d.ability='';
+  const screensBreak=id(moveName)==='schradebreaker';
+  const field=new calc.Field({
+    weather:state.fieldExtras.weather,terrain:terrain||undefined,gameType,
+    isSwordOfRuin:state.fieldExtras.isSwordOfRuin,
+    isDarkAura:[a,d].some(p=>id(p.ability)==='darkaura'),
+    isFairyAura:[a,d].some(p=>id(p.ability)==='fairyaura'),
+    defenderSide:{
+      isReflect:reflect&&!screensBreak,
+      isLightScreen:lightScreen&&!screensBreak,
+      isAuroraVeil:(auroraVeil||state.fieldExtras.isCustomVeil)&&!screensBreak,
+      isProtected:state.fieldExtras.isProtected
+    },
+    attackerSide:{isHelpingHand:helpingHand}
+  });
+  const effectiveTypes=d.pokemon.teraType?[d.pokemon.teraType]:d.pokemon.types;
+  const match=matchup(gen,chosen.move.type,effectiveTypes);
+  const extra=additionalDamageEffects({
+    attacker:a,defender:d,move:chosen.move,activeWeather:state.activeWeather,
+    exposed,match,notes,manual:state.manual
+  });
+  if(chosen.custom?.description&&
+    !chosen.preset?.effect)warnings.push('Move description contains non-damage effects; review the move text after the hit.');
+  if(id(moveName)==='nihillight'&&protection)warnings.push('Nihil Light protection bypass is provisional.');
+  if((a.form.mega&&attackerSettings.tera)||(d.form.mega&&defenderSettings.tera))
+    warnings.push('Mega + Tera combination uses Santara house rules; confirm the intended STAB interaction.');
   const result=calc.calculate(gen,a.pokemon,d.pokemon,chosen.move,field);
-  let rolls=damageRolls(result.damage).map(v=>Math.max(0,Math.floor(v*extra)));
+  const rolls=damageRolls(result.damage).map(v=>Math.max(0,Math.floor(v*extra)));
   const min=Math.min(...rolls),max=Math.max(...rolls);
   const defenderHP=d.pokemon.maxHP();
   const currentDefHP=d.pokemon.curHP();
   const koChance=rolls.filter(v=>v>=currentDefHP).length/rolls.length*100;
+  const followups=afterDamageEffects({
+    attacker:a,defender:d,move:chosen.move,min,max,koChance,manual:state.manual
+  });
+  notes.push(...followups);
+  const accuracy=state.activeWeather==='Royal Tempest'&&
+    ['thunder','hurricane'].includes(id(moveName))?100:chosen.accuracy;
   return {
     min,max,rolls,defenderHP,currentDefHP,koChance,
     minPercent:100*min/defenderHP,maxPercent:100*max/defenderHP,
     attackerHP:a.pokemon.maxHP(),attackerStats:a.pokemon.rawStats,
     defenderStats:d.pokemon.rawStats,ability:a.ability,
-    basePower:chosen.basePower,accuracy:chosen.accuracy,
-    weather:activeWeather,notes,warnings,
+    basePower:chosen.basePower,accuracy,
+    weather:state.activeWeather,notes,warnings,
     fullDescription:extra===1?safeDescription(result):'',
-    meta:{type:chosen.move.type,category:chosen.move.category,hits:chosen.move.hits}
+    meta:{type:chosen.move.type,category:chosen.move.category,hits:chosen.move.hits,
+      critical:chosen.move.isCrit,spread:chosen.move.target}
   };
 }
