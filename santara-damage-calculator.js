@@ -388,13 +388,19 @@ async function reloadData(){
     const allCustomSpecies=combineByName(presets.species,c.docs.map(d=>({slug:d.id,...d.data()})));
     const customSpecies=gm?allCustomSpecies:playerVisibleCustomSpecies(
       visiblePlayerContent('species',allCustomSpecies,records,playerProgression),records,playerProgression);
-    const megaForms=combineByName(presets.megas,liveMega);
     const gen=engine().Generations.get(9);
+    megaForms=combineByName(
+      [...officialMegaPreviews(gen),...SANTARA_MEGA_PREVIEWS,...presets.megas],liveMega);
     choices=makeChoices(gen,records,customSpecies,megaForms);
     byKey=new Map(choices.map(x=>[x.key,x]));
     moves=[...new Set([...customMoves.map(x=>x.name),...[...gen.moves].map(x=>x.name)])].sort((a,b)=>a.localeCompare(b));
     abilities=[...new Set([...customAbilities.map(x=>x.name),...[...gen.abilities].map(x=>x.name)])].sort();
-    items=[...gen.items].map(x=>x.name).sort();
+    const visibleMegas=gm?megaForms:
+      megaForms.filter(form=>playerProgression.mega&&(!isStoryMega(form)||
+        playerProgression.megaFormUnlocks?.some(slug=>canon(slug)===canon(form.slug))||
+        records.some(mon=>canon(mon.megaForm?.slug)===canon(form.slug))));
+    items=[...new Set([...gen.items].map(x=>x.name).concat(
+      megaStoneNames(visibleMegas,records)))].sort((a,b)=>a.localeCompare(b));
     natureNames=[...gen.natures].map(x=>x.name).sort();
     loaded=true;draw();
   }catch(e){host.innerHTML='<section class="panel"><h2>Pokémon records could not load</h2><p>'+escape(e.message||String(e))+'</p><p>Sign into an approved Santara account and verify the published Firebase rules.</p><button class="btn" id="damage-reload">Retry</button></section>';msg('Cannot load calculator data.');}
