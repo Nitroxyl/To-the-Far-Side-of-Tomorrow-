@@ -105,7 +105,7 @@ function refreshSide(side) {
   const source=sourceFor(side);
   if(!source)return;
   el(side+'-level').value=source.level||50;
-  el(side+'-ability').value=source.ability||source.abilities?.[0]||'';
+  el(side+'-ability').value=(source.megaActive&&source.megaForm?.ability)||source.ability||source.abilities?.[0]||'';
   el(side+'-item').value=source.heldItem||'';
   el(side+'-nature').value=source.nature||'Serious';
   el(side+'-status').value=source.status||'None';
@@ -164,8 +164,9 @@ function runCalculation() {
 function draw() {
   if(!engine()){host.innerHTML='<section class="panel"><h2>Calculation engine did not load</h2><p>The calculator relies on the pinned @smogon/calc 0.12.0 browser scripts. Check your connection or content blocker, then reload this page.</p></section>';return;}
   const saved=choices.find(x=>x.kind==='registered')?.key;
-  const chosenA=saved||'o:charizard';
-  const chosenB=choices.find(x=>x.kind==='registered'&&x.key!==saved)?.key||'o:tyranitar';
+  const linked=new URLSearchParams(location.search).get('attacker');
+  const chosenA=(linked&&byKey.has('r:'+linked)?'r:'+linked:null)||saved||'o:charizard';
+  const chosenB=choices.find(x=>x.kind==='registered'&&x.key!==chosenA)?.key||'o:tyranitar';
   const list=(values)=>values.map(x=>'<option value="'+escape(x)+'"></option>').join('');
   host.innerHTML='<div class="calc-grid">'+sideMarkup('a','Attacker',chosenA)+sideMarkup('d','Defender',chosenB)+
     '</div><div style="height:18px"></div>'+fieldMarkup()+'<div id="damage-results" style="margin-top:18px"></div>'+
@@ -209,6 +210,10 @@ host.addEventListener('click',e=>{
 host.addEventListener('change',e=>{
   if(e.target.id==='a-choice')refreshSide('a');
   if(e.target.id==='d-choice')refreshSide('d');
+  if(['a-mega','d-mega'].includes(e.target.id)){
+    const side=e.target.id[0],source=sourceFor(side);
+    if(source?.megaForm)el(side+'-ability').value=e.target.checked?source.megaForm.ability:source.ability||source.abilities?.[0]||'';
+  }
 });
 host.addEventListener('submit',async e=>{
   if(e.target.id!=='damage-login')return;
