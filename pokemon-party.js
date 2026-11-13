@@ -1,7 +1,7 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,runTransaction,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-import {statKeys,statLabels,validStats,maxHpV53,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=santara-grid-moves-20261109-1';
+import {statKeys,statLabels,validStats,maxHpV53,maxHpV6,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=v6-damage-20261113-1';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
 import {memoryKey,displayMoveName,uniqueMoves,eligibleLevelMoves,mergeMoveMemory,removeMoveMemory,validEquippedMoves,moveSourceName,MOVE_SOURCES} from './pokemon-move-memory.js?v=move-memory-20261109-1';
 import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
@@ -552,8 +552,8 @@ async function reviewRequest(id){
   :await fetchOfficial(request.speciesKey);
  activeRequestId=request.id;
  editingId='';chosen='';draft={...species,level:request.level,nickname:request.nickname,
-  origin:request.notes,maxHp:maxHpV53(species.baseStats,request.level),
-  currentHp:maxHpV53(species.baseStats,request.level),ownerUid:request.ownerUid};
+  origin:request.notes,maxHp:maxHpV6(species.baseStats,request.level),
+  currentHp:maxHpV6(species.baseStats,request.level),ownerUid:request.ownerUid};
  view='assign';render();
  say('Check the requested Pokémon, set its party slot and moves, then click Assign to Trainer.');
 }
@@ -579,7 +579,7 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V5.3 battle progression</h3><p>Every five Pokémon levels grant one D&D level. V5.3 adds scaled HP, level damage and proficiency-based AC while retaining the V5.2 offense/defense stat tiers. Optional table and AC overrides still work.</p><button class="btn" data-act="rules">Edit battle rules</button><p class="hint">${battleRules?'Custom offense/defense settings loaded.':'Default V5.2 stat tier multipliers are active.'}</p></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V6 Pokémon Damage</h3><p>The calculator uses the standard Pokémon damage formula, perfect IVs and registered Santara custom forms. Existing Pokémon HP is kept unchanged until the GM recalculates and saves it.</p><div class="actions"><a class="btn primary" href="./damage-calculator.html">Open Damage Calculator</a><button class="btn" data-act="rules">Legacy V5.3 settings</button></div></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
 }
 
 function moveMemoryView(mon){
@@ -716,10 +716,10 @@ function detail(m){
  return `<section class="panel"><div class="toolbar"><button class="btn" data-act="back">← Back</button><div class="actions">${GM_SITE?`<button class="btn" data-act="edit" data-id="${esc(m.id)}">Edit Pokémon</button><button class="btn danger" data-act="delete" data-id="${esc(m.id)}">Release record</button>`:''}</div></div>
  <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> <span class="chip">D&D Lv. ${d.dndLevel}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
- <p class="hint">20-point brackets — Atk ${esc(d.physicalOffenseBand)}, SpA ${esc(d.specialOffenseBand)}, Def ${esc(d.physicalDefenseBand)}, SpD ${esc(d.specialDefenseBand)}. Speed ${d.effectiveSpeed} before battle modifiers.</p><p class="hint">Grid movement: <b>${d.movementSquares} squares per turn</b> (${d.movementFeet} ft). 1 square = 5 ft. D&D grid encounters only; major Doubles battles use standard Pokémon targeting.</p>
- <div class="stats-grid"><div class="stat"><b>${d.movementSquares}</b><small>Grid movement · squares</small></div><div class="stat"><b>${d.dndLevel}/20</b><small>D&D level</small></div><div class="stat"><b>+${d.proficiencyBonus}</b><small>Proficiency / attacks</small></div><div class="stat"><b>${mul(d.levelDamageMultiplier)}</b><small>Level damage</small></div><div class="stat"><b>${d.universalAC}</b><small>Universal AC (V5.3)</small></div><div class="stat"><b>${mul(d.physicalOffenseMultiplier)}</b><small>Physical offense</small></div><div class="stat"><b>${mul(d.specialOffenseMultiplier)}</b><small>Special offense</small></div><div class="stat"><b>${mul(d.levelledPhysicalOffenseMultiplier)}</b><small>Physical offense × level</small></div><div class="stat"><b>${mul(d.levelledSpecialOffenseMultiplier)}</b><small>Special offense × level</small></div><div class="stat"><b>${mul(d.physicalDefenseMultiplier)}</b><small>Physical defense</small></div><div class="stat"><b>${mul(d.specialDefenseMultiplier)}</b><small>Special defense</small></div></div>
- <p class="flag">V5.3: damage dice × offense × level (${mul(d.levelDamageMultiplier)}) × STAB × type effectiveness × defense. Attack rolls add proficiency (+${d.proficiencyBonus}); ${d.acOverridden?'GM-set universal AC '+d.universalAC:'universal AC '+d.universalAC+' = 11 + PB'}. The original V5.2 stat tiers are unchanged.</p>${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV53(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from the V5.3 suggested '+maxHpV53(m.baseStats,m.level)+'. A GM can recalculate HP in Edit Pokémon; existing overrides are kept until saved.</p>':''}
- <div class="actions"><button type="button" class="btn primary" data-act="manage-moves">Manage Moves / Remember Moves</button></div><div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
+ <p class="hint">Grid movement: <b>${d.movementSquares} squares</b> (${d.movementFeet} ft). D&D level: ${d.dndLevel}/20; proficiency: +${d.proficiencyBonus}. These remain useful for adventure encounters.</p>
+ <p class="flag">V6: Pokémon damage and defenses use the standard Pokémon formula, not the old dice or stat-tier multipliers. All IVs are effectively perfect (31). <a href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Open the calculator</a>.</p>
+ ${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV6(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from V6 standard '+maxHpV6(m.baseStats,m.level)+' (zero HP EVs). The GM can explicitly recalculate HP and save in Edit Pokémon; existing custom HP is preserved until then.</p>':''}
+ <div class="actions"><a class="btn primary" href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Calculate Damage</a><button type="button" class="btn" data-act="manage-moves">Manage Moves / Remember Moves</button></div><div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
   const info=moveInfo[name],special=customMoveByName(name);
   const cls=info?.classification||classifyMove(name,special||null);
   const tags=classificationLabels(cls).map(label=>`<span class="move-class">${esc(label)}</span>`).join('');
@@ -747,7 +747,7 @@ function refreshLevelHpPreview(form,force=false){
  if(!GM_SITE||!form||!validStats(mon?.baseStats)||!Number.isInteger(level)||level<1||level>100)return;
  const hpMax=form.elements.maxHp,hpNow=form.elements.currentHp;
  const previous=Number(hpMax.value),previousGenerated=Number(hpMax.dataset.generated);
- const suggested=maxHpV53(mon.baseStats,level);
+ const suggested=maxHpV6(mon.baseStats,level);
  const auto=force||previous===previousGenerated;
  if(auto){
   const current=hpAfterMaxChange(Number(hpNow.value),previous,suggested);
@@ -769,17 +769,17 @@ function gmForm(){
  const existing=pokemon.find(m=>m.id===editingId);
  const d=draft||existing||{};
  const level=Number(d.level)||5;
- const defaultHp=validStats(d.baseStats)?maxHpV53(d.baseStats,level):'';
+ const defaultHp=validStats(d.baseStats)?maxHpV6(d.baseStats,level):'';
  return `<section class="panel"><div class="toolbar"><h2>${existing?'Edit Pokémon':'Assign Pokémon'}</h2><button class="btn" data-act="back">← Cancel</button></div>
  <form id="assign-form" class="form-grid">
  <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button class="btn" data-act="lookup" type="button">Fetch stats from PokéAPI / custom list</button><span class="hint" id="species-source">${draft?esc(d.source||''):'Look up a species before saving.'}</span></div>
  <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,trainerLabel(t.uid),d.ownerUid||ownerFilter)).join('')}</select></label>
- <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label><p id="v53-level-preview" class="hint full">D&D Lv ${dndLevel(level)}/20 · Proficiency +${proficiencyBonus(level)} · Level damage ×${levelDamageMultiplier(level).toFixed(2)} · Suggested HP ${defaultHp}${d.maxHp!=null&&Number(d.maxHp)!==defaultHp?' · Manual/legacy HP preserved':''}</p>
+ <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label><p id="v53-level-preview" class="hint full">D&D Lv ${dndLevel(level)}/20 · Proficiency +${proficiencyBonus(level)} · V6 recommended HP ${defaultHp}${d.maxHp!=null&&Number(d.maxHp)!==defaultHp?' · Manual/legacy HP preserved':''}</p>
  <label class="field">Nickname<input name="nickname" maxlength="32" value="${esc(d.nickname||'')}"></label>
  <label class="field">Ability<input name="ability" list="abilities" maxlength="48" value="${esc(d.ability||d.abilities?.[0]||'')}"><datalist id="abilities">${eligibleAbilityNames(d,customAbilities).map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist></label>
- <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp??defaultHp}"><span class="hint">V5.3 calculated max HP: ${defaultHp}. You may override this for bosses.</span></label>
- <label class="field">Current HP<input name="currentHp" type="number" min="0" max="${d.maxHp??defaultHp??3000}" required value="${d.currentHp??d.maxHp??defaultHp}"></label><div class="actions"><button class="btn" type="button" data-act="recalc-hp">Recalculate HP (V5.3)</button><span class="hint">Keeps damage taken; fainted Pokémon stay at 0 HP. Click Save Pokémon to apply.</span></div>
+ <label class="field">Maximum HP<input name="maxHp" data-generated="${defaultHp}" type="number" min="1" max="3000" required value="${d.maxHp??defaultHp}"><span class="hint">V6 perfect-IV calculated max HP: ${defaultHp}. You may override this for bosses.</span></label>
+ <label class="field">Current HP<input name="currentHp" type="number" min="0" max="${d.maxHp??defaultHp??3000}" required value="${d.currentHp??d.maxHp??defaultHp}"></label><div class="actions"><button class="btn" type="button" data-act="recalc-hp">Recalculate HP (V6)</button><span class="hint">Keeps damage taken; fainted Pokémon stay at 0 HP. Click Save Pokémon to apply.</span></div>
  <label class="field">Party slot<select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,d.slot??0)).join('')}</select></label>
  <label class="field">Tera Type<select name="teraType">${TYPES.map(t=>option(t,t[0].toUpperCase()+t.slice(1),d.teraType||d.types?.[0]||'normal')).join('')}</select></label>
  <label class="field full">Mega Evolution form<select name="megaSlug">${option('','No Mega assigned',d.megaForm?.slug||'')}${megaChoiceFor(d).map(f=>option(f.slug,f.name,d.megaForm?.slug||'')).join('')}</select>
@@ -791,20 +791,20 @@ function gmForm(){
  <div class="actions"><button type="button" class="btn small" data-act="define-move">+ Define custom move</button><button type="button" class="btn small" data-act="define-ability">+ Define custom ability</button></div></div>
  <label class="field full">Location obtained / history<input name="origin" maxlength="150" value="${esc(d.origin||'')}"></label>
  <label class="field full">Shared notes (visible to Trainer)<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
- <p class="hint full">V5.3 HP uses Base HP and level; D&D level = ceiling(Pokémon level ÷ 5). Existing saved HP is never changed just by opening this editor. You can manually override HP for bosses, or use Recalculate HP to adopt V5.3.</p>
+ <p class="hint full">V6 uses standard Pokémon HP at perfect IVs (31) and 0 EVs by default. Existing saved HP is never changed by opening this editor. Recalculate HP explicitly, then Save, to migrate older records.</p>
  <div class="actions"><button class="btn primary" type="submit" ${draft||existing?'':'disabled'}>${existing?'Save Pokémon':'Assign to Trainer'}</button></div>
  </form></section>`;
 }
 function rulesForm(){
  const r=battleRules||{};
- return `<section class="panel"><div class="toolbar"><h2>V5.3 combat configuration</h2><button class="btn" data-act="back">← Cancel</button></div>
- <p>V5.3 calculates 1 D&D level per 5 Pokémon levels, proficiency-based AC, and a level damage multiplier automatically. The V5.2 offense/defense tiers remain configurable below. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk uses the 200–249 tier; 250+ is the final tier. The values below are prefilled from our V5.2 table.</p>
+ return `<section class="panel"><div class="toolbar"><h2>Legacy V5.3 configuration (not used by V6)</h2><button class="btn" data-act="back">← Cancel</button></div>
+ <p>These old V5.3 multipliers are retained only for archive/migration purposes. Actual damage now uses the V6 Pokémon damage calculator, not these tiers. Multipliers are listed in 20-point intervals starting at 0–19, 20–39, 40–59, and so on. A Pokémon with 200 Sp. Atk uses the 200–249 tier; 250+ is the final tier. The values below are prefilled from our V5.2 table.</p>
  <form id="rules-form" class="form-grid">
  <label class="field">Universal AC<input name="universalAc" type="number" min="1" max="50" placeholder="Optional fixed AC override" value="${r.universalAc??''}"></label>
  <label class="field full">Offense multipliers (comma-separated)<textarea name="offenseBands" placeholder="20-point offense tier multipliers">${(r.offenseBands?.length?r.offenseBands:V52_TIERS.map(t=>t.offense)).join(', ')}</textarea></label>
  <label class="field full">Defense multipliers (comma-separated)<textarea name="defenseBands" placeholder="20-point defense tier multipliers">${(r.defenseBands?.length?r.defenseBands:V52_TIERS.map(t=>t.defense)).join(', ')}</textarea></label>
  <p class="hint full">V5.3 progression is automatic. The V5.2 stat tiers remain active unless overridden here. Universal AC = 11 + level-based proficiency bonus (+2 to +6), unless you enter a fixed override.</p>
- <div class="actions"><button class="btn primary" type="submit">Save V5.3 combat rules</button></div>
+ <div class="actions"><button class="btn primary" type="submit">Save legacy combat rules</button></div>
  </form></section>`;
 }
 async function saveRules(form){
@@ -821,7 +821,7 @@ async function saveRules(form){
  await setDoc(doc(store,'santara_battle_rules','v5_2'),{
   universalAc,offenseBands:parse('offenseBands'),defenseBands:parse('defenseBands'),updatedAt:serverTimestamp()
  });
- say('V5.3 combat settings saved for all approved Trainers; the V5.2 stat-tier table remains in use.');clearSelection();
+ say('Legacy V5.3 settings saved. They are not used by the V6 damage calculator.');clearSelection();
 }
 function customForm(){
  return `<section class="panel"><div class="toolbar"><h2>Register a Santara species or custom form</h2><button class="btn" data-act="back">← Cancel</button></div>
@@ -1004,7 +1004,7 @@ root.addEventListener('click',async e=>{
    const form=document.getElementById('assign-form');
    const result=refreshLevelHpPreview(form,true);
    if(!result)throw Error('Fetch valid Pokémon stats and select a level first.');
-   say('V5.3 HP preview: '+result.currentHp+'/'+result.maxHp+'. Save Pokémon to keep this change. Any custom HP overrides can still be edited.');
+   say('V6 HP preview: '+result.currentHp+'/'+result.maxHp+'. Save Pokémon to keep this change. Any custom HP overrides can still be edited.');
   }
   if(action==='lookup'&&GM_SITE){
     busy=true;b.disabled=true;say('Fetching species stats…');
@@ -1015,11 +1015,11 @@ root.addEventListener('click',async e=>{
     const oldMax=Number(previous?.maxHp)||0;
     const oldLevel=Number(previous?.level)||5;
     const oldSuggested=validStats(previous?.baseStats)?maxHpV53(previous.baseStats,oldLevel):0;
-    const preserveOverride=wasSame&&oldMax>0&&oldMax!==oldSuggested;
+    const preserveOverride=wasSame&&oldMax>0&&oldMax!==oldSuggested&&oldMax!==(validStats(previous?.baseStats)?maxHpV6(previous.baseStats,oldLevel):0);
     draft={...(draft||{}),...species};
     const enteredLevel=Number(document.querySelector('#assign-form [name="level"]')?.value);
     draft.level=Number.isInteger(enteredLevel)&&enteredLevel>=1&&enteredLevel<=100?enteredLevel:5;
-    const suggestedMax=maxHpV53(species.baseStats,draft.level);
+    const suggestedMax=maxHpV6(species.baseStats,draft.level);
     draft.maxHp=preserveOverride?oldMax:suggestedMax;
     draft.currentHp=oldMax>0
      ?hpAfterMaxChange(previous.currentHp??oldMax,oldMax,draft.maxHp)
