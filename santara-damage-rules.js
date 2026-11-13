@@ -88,6 +88,7 @@ export function setupSpecialEffects({attacker,defender,move,weather='Auto',expos
  if(d==='siegebattery')manual.push('Siege Battery: if the defender survives its first hit this round, its Sp. Atk rises by 1 stage.');
  if(a==='systemoverride'&&exposed){
   defender.pokemon.ability=undefined;
+  defender.ability='';
   defender.pokemon.boosts.spe=Math.max(-6,(defender.pokemon.boosts.spe||0)-1);
   notes.push('System Override: marked target ability suppressed, Speed -1, and Normal/Electric damage +20%.');
  }else if(a==='systemoverride')manual.push('System Override: use Exposed when the chosen marked opponent is active; its Ability will be suppressed and Speed reduced.');
