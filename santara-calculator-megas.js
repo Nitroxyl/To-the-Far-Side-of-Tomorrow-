@@ -1,7 +1,7 @@
 // Calculator-only Mega form previews mirrored from finalized Santara GM presets.
 // New GM form registrations remain managed in Firebase, and assigned form snapshots
 // always override previews. These definitions do not grant a Mega or Mega Stone.
-import {suggestedMegaStone} from './pokemon-mega-stones.js';
+import {suggestedMegaStone} from './pokemon-mega-stones.js?v=ceruledgite-v1';
 import {unlockedValue} from './santara-player-unlocks.js';
 
 const normalize=value=>String(value??'').toLowerCase().replace(/[^a-z0-9]/g,'');
