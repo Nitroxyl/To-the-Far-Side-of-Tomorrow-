@@ -1,4 +1,4 @@
-import {knownMove,moveProperties,recognizedCustomAbility,setupSpecialEffects,additionalDamageEffects,afterDamageEffects} from './santara-damage-rules.js';
+import {knownMove,moveProperties,recognizedCustomAbility,setupSpecialEffects,additionalDamageEffects,afterDamageEffects} from './santara-damage-rules.js?v=custom-20261114-4';
 // Santara V6 damage adapter. Read-only: never modifies a saved Pokemon.
 // Underlying cartridge rules: @smogon/calc 0.12.0 (Generation 9).
 export const STAT_IDS = ['hp','atk','def','spa','spd','spe'];
