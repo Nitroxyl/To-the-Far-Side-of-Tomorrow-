@@ -23,12 +23,12 @@ function signin(){
 }
 function displayName(p){return (p.nickname?p.nickname+' · ':'')+(p.speciesName||p.name||p.speciesKey||'Pokémon')+' (Lv '+(p.level||50)+')';}
 function makeChoices(gen,records,customSpecies){
-  const mine=records.map(m=>({key:'r:'+m.id,label:displayName(m),source:m,kind:'registered'}));
-  const customs=customSpecies.map(m=>({key:'c:'+m.slug,label:m.name+' · Santara custom',kind:'custom',source:{
+  const mine=records.map(m=>({key:'r:'+m.id,label:displayName(m),source:m,kind:'registered',generation:generationOf(m.speciesKey)}));
+  const customs=customSpecies.map(m=>({key:'c:'+m.slug,label:m.name+' · Santara custom',kind:'custom',generation:null,source:{
     name:m.name,speciesName:m.name,speciesKey:m.slug,baseStats:m.baseStats,types:m.types,abilities:m.abilities,level:50
   }}));
   const official=[...gen.species].filter(m=>m.baseStats&&m.types?.length).map(m=>({
-    key:'o:'+m.id,label:m.name,kind:'official',source:{
+    key:'o:'+m.id,label:m.name,kind:'official',generation:generationOf(m.id),source:{
       name:m.name,speciesName:m.name,speciesKey:m.id,baseStats:{
         hp:m.baseStats.hp,attack:m.baseStats.atk,defense:m.baseStats.def,
         specialAttack:m.baseStats.spa,specialDefense:m.baseStats.spd,speed:m.baseStats.spe
@@ -37,14 +37,54 @@ function makeChoices(gen,records,customSpecies){
   }));
   return [...mine,...customs,...official];
 }
-function selectChoices(selected){
+function generationOf(species) {
+  const key=canon(species);
+  if(!key)return null;
+  for(let n=1;n<=9;n++){
+    try{if(engine()?.Generations.get(n).species.get(key))return n}
+    catch{continue}
+  }
+  return null;
+}
+function matchingChoices(query) {
+  const text=String(query||'').trim().toLowerCase();
+  if(!text)return choices;
+  const gen=text.match(/^(?:gen(?:eration)?\s*|g)([1-9])(?:\s+(.+))?$/);
+  const paldea=text.match(/^paldea(?:\s+(.+))?$/);
+  const generation=gen?Number(gen[1]):paldea?9:null;
+  const needle=(gen?gen[2]:paldea?paldea[1]:text)||'';
+  const tokens=needle.trim().split(/\s+/).filter(Boolean).map(canon);
+  return choices.filter(item=>{
+    if(generation!==null&&item.generation!==generation)return false;
+    const haystack=canon([item.label,item.source?.speciesName,item.source?.nickname,item.source?.speciesKey].join(' '));
+    return tokens.every(token=>haystack.includes(token));
+  });
+}
+function selectChoices(selected,items=choices){
   let group='',out='';
-  for(const item of choices) {
+  for(const item of items) {
     const name=item.kind==='registered'?'Saved Trainer Pokémon':item.kind==='custom'?'Santara species':'Official Pokémon';
     if(group!==name){if(group)out+='</optgroup>';group=name;out+='<optgroup label="'+escape(name)+'">';}
     out+=option(item.key,item.label,selected);
   }
-  return out+'</optgroup>';
+  return out+(group?'</optgroup>':'');
+}
+function filterPokemon(side) {
+  const search=el(side+'-search'),select=el(side+'-choice'),count=el(side+'-match-count');
+  if(!search||!select)return;
+  const previous=select.value;
+  const matches=matchingChoices(search.value);
+  if(!matches.length){
+    const current=byKey.get(previous);
+    select.innerHTML=current?option(current.key,current.label,current.key):'<option value="">No results</option>';
+    count.textContent='No matches. Try another name.';
+    return;
+  }
+  const selected=matches.some(item=>item.key===previous)?previous:matches[0].key;
+  select.innerHTML=selectChoices(selected,matches);
+  select.value=selected;
+  count.textContent=search.value.trim()?matches.length+' matching Pokémon':'Search by name, nickname, or generation.';
+  if(selected!==previous){refreshSide(side);runCalculation()}
 }
 function natureOptions(value){return natureNames.map(x=>option(x,x,value||'Serious')).join('');}
 function typeOptions(value){return TYPE_NAMES.map(x=>option(x,x,value)).join('');}
@@ -53,7 +93,9 @@ function toggleMarkup(id,label){
 }
 function sideMarkup(side,title,selected){
   return '<section class="panel calc-combatant"><h2>'+title+'</h2>'+
+  '<label class="field calc-pokemon-search" for="'+side+'-search">Search Pokémon<input id="'+side+'-search" type="search" autocomplete="off" aria-controls="'+side+'-choice" placeholder="Name, nickname, or Gen 9"></label>'+
   '<label class="field">Pokémon<select id="'+side+'-choice">'+selectChoices(selected)+'</select></label>'+
+  '<p class="calc-match-count" id="'+side+'-match-count" aria-live="polite">Search by name, nickname, or generation.</p>'+
   '<div class="form-grid" style="margin-top:14px">'+
   '<label class="field">Level<input id="'+side+'-level" type="number" min="1" max="100" value="50"></label>'+
   '<label class="field">Nature<select id="'+side+'-nature">'+natureOptions('Serious')+'</select></label>'+
@@ -244,6 +286,7 @@ host.addEventListener('change',e=>{
 });
 let inputRecalc=null;
 host.addEventListener('input',e=>{
+  if(['a-search','d-search'].includes(e.target.id)){filterPokemon(e.target.id[0]);return;}
   if(!e.target.matches('input[type=text],input[type=number],input:not([type]),select'))return;
   if(!el('damage-results'))return;
   clearTimeout(inputRecalc);
