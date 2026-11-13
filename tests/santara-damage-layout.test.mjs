@@ -33,6 +33,8 @@ test('calculator controls, transformation toggles and summary stay accessible',(
   assert.ok(group.querySelector('label[for="'+side+'-tera"]'));
   assert.ok(group.querySelector('label[for="'+side+'-dmax"]'));
   assert.equal(doc.querySelector('#'+side+'-tera-wrap').hidden,true);
+  assert.equal(doc.querySelectorAll('[id^="'+side+'-ev-"]').length,0,'no EV fields should be shown');
+  assert.ok(doc.querySelector('#'+side+'-boost-atk'),'stat stages remain available');
  }
  assert.match(preview.textContent,/20–30 HP/);
  assert.ok(calls>=1);
@@ -43,6 +45,8 @@ test('calculator controls, transformation toggles and summary stay accessible',(
  assert.ok(calls>=2,'changes should update the result automatically');
  assert.equal(doc.querySelector('.calc-options details').open,false,'advanced battlefield settings start collapsed');
  assert.ok(doc.querySelector('.calc-quick input#damage-move'),'move selector stays at the top');
+ assert.match(doc.querySelector('.calc-advanced summary').textContent,/Stat stages/);
+ assert.equal(doc.querySelectorAll('.calc-stage-grid').length,2);
 });
 test('calculator CSS makes damage results sticky and checkbox labels horizontal',()=>{
  const html=readFileSync(new URL('../damage-calculator.html',import.meta.url),'utf8');
