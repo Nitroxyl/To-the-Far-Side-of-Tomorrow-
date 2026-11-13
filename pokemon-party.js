@@ -594,10 +594,30 @@ function playerProgressionSummary(){
  const gimmicks=Object.entries(GIMMICK_LABELS).filter(([k])=>playerUnlocks[k]).map(([,v])=>v);
  const reveals=Object.entries(UNLOCK_LIST_FIELDS).reduce((n,[,k])=>
   n+(playerUnlocks[k]?.length||0),0);
+ const displayName=(category,key)=>{
+  if(category==='weather')return key;
+  const list=category==='species'?customs:category==='moves'?customMoves:
+   category==='abilities'?customAbilities:[];
+  const entry=list.find(x=>
+   String(x.slug||'').toLowerCase()===String(key).toLowerCase()||
+   String(x.name||'').toLowerCase()===String(key).toLowerCase());
+  if(entry?.name)return entry.name;
+  return String(key).replace(/[-_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+ };
+ const groups=[
+  ['species','Species & forms'],['megaForms','Mega forms'],['moves','Moves'],
+  ['abilities','Abilities'],['weather','Special weather']
+ ].map(([category,label])=>{
+  const keys=playerUnlocks[UNLOCK_LIST_FIELDS[category]]||[];
+  return keys.length?'<p><b>'+esc(label)+':</b> '+keys.map(k=>esc(displayName(category,k))).join(', ')+'</p>':'';
+ }).join('');
  return '<section class="panel"><h3>My Progression</h3>'+
   '<p class="hint">Your GM unlocks mechanics and reveals as the adventure progresses. New unlocks appear automatically.</p>'+
   '<p><b>Battle mechanics:</b> '+esc(gimmicks.join(', ')||'None unlocked yet')+'</p>'+
-  '<p class="hint">'+reveals+' special content reveals available. Previously assigned Pokémon and learned moves remain usable.</p></section>';
+  (reveals?'<details><summary>Special discoveries ('+reveals+')</summary><div class="unlock-discoveries">'+groups+
+  '<p class="hint">Mega form reveals still require a GM assignment and matching Mega Stone. Moves are learned through Move Memory.</p></div></details>':
+  '<p class="hint">No custom reveals yet. Previously assigned Pokémon and learned moves remain usable.</p>')+
+  '</section>';
 }
 function listView(){
  const mine=GM_SITE?pokemon.filter(m=>m.ownerUid===ownerFilter):pokemon;
