@@ -17,7 +17,8 @@ const STONES={
  lopunny:'Lopunnite',garchomp:'Garchompite',lucario:'Lucarionite',baxcalibur:'Baxcalibrite',
  abomasnow:'Abomasite',gallade:'Galladite',audino:'Audinite',
  diancie:'Diancite',slowking:'Slowkingite',raichu:'Raichunite',
- dragonite:'Dragoninite',starmie:'Starminite'
+ dragonite:'Dragoninite',starmie:'Starminite',
+ ceruledge:'Ceruledgite'
 };
 export function suggestedMegaStone(mon,form){
  if(!form)return '';
@@ -25,7 +26,8 @@ export function suggestedMegaStone(mon,form){
  const base=STONES[key]||key.split('-').map(x=>x?x[0].toUpperCase()+x.slice(1):'').join('')+'ite';
  const name=String(form.name||'').trim();
  const slug=String(form.slug||'').trim();
- const suffix=name.match(/\b([XYZ])$/i)?.[1]||slug.match(/(?:^|[-_])([xyz])$/i)?.[1]||'';
+ const isNamedZSpecies=/porygon-z$/i.test(name);
+ const suffix=name.match(/\s([XYZ])$/i)?.[1]||(!isNamedZSpecies?slug.match(/(?:^|[-_])([xyz])$/i)?.[1]:'')||'';
  return base+(suffix?' '+suffix.toUpperCase():'');
 }
 export function hasRequiredMegaStone(mon,requiredStone){
