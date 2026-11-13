@@ -24,9 +24,15 @@ test('engine and perfect-IV baseline are present',()=>{
   assert.equal(made.pokemon.rawStats.hp,145);
   assert.equal(maxHpV6({hp:1},100),1);
 });
-test('validates EV training without exposing IV controls',()=>{
-  assert.throws(()=>legalEvs({hp:252,atk:252,def:100}),/510/);
-  assert.equal(legalEvs({atk:252,spa:4}).atk,252);
+test('EVs are always zero, even if a legacy caller supplies trained stats',()=>{
+  const empty=legalEvs();
+  assert.deepEqual(empty,{hp:0,atk:0,def:0,spa:0,spd:0,spe:0});
+  assert.deepEqual(legalEvs({hp:252,atk:252,def:100,spa:252}),empty);
+  const baseline=makePokemon(calc,lookup,lucario,{level:50},customAbilities);
+  const legacy=makePokemon(calc,lookup,lucario,{level:50,evs:{hp:252,atk:252,def:100,spa:252}},customAbilities);
+  assert.deepEqual(legacy.pokemon.evs,baseline.pokemon.evs);
+  assert.deepEqual(legacy.pokemon.rawStats,baseline.pokemon.rawStats);
+  assert.equal(legacy.pokemon.rawStats.hp,maxHpV6(lucario.baseStats,50));
 });
 test('standard 90 BP Flamethrower calculates real damage on a 4x weak defender',()=>{
   const hit=computeDamage(calc,{attacker:charizard,defender:scizor,moveName:'Flamethrower'});
