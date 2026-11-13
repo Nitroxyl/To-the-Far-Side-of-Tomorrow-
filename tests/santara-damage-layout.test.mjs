@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createContext,runInContext} from 'node:vm';
 import {JSDOM} from 'jsdom';
 import {createRequire} from 'node:module';
+import {eligibleMegaForms,requiredStoneFor,matchesMegaStone} from '../santara-calculator-megas.js';
 import {readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER} from '../santara-player-unlocks.js';
 
 test('calculator controls, transformation toggles and summary stay accessible',()=>{
@@ -14,7 +15,7 @@ test('calculator controls, transformation toggles and summary stay accessible',(
  const result={min:20,max:30,minPercent:15.4,maxPercent:23.1,defenderHP:130,currentDefHP:130,
   koChance:0,notes:[],warnings:[],meta:{category:'Special',type:'Fire',hits:1},basePower:90,accuracy:100,weather:'Clear',fullDescription:''};
  let calls=0;
- const context=createContext({readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:root,document:root.document,location:root.location,URLSearchParams,
+ const context=createContext({eligibleMegaForms,requiredStoneFor,matchesMegaStone,readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:root,document:root.document,location:root.location,URLSearchParams,
    console,Map,Set,encodeURIComponent,setTimeout,clearTimeout,
    computeDamage:()=>{calls++;return result;},titleType:v=>v.charAt(0).toUpperCase()+v.slice(1)});
  const source=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8')
@@ -61,7 +62,7 @@ test('unreleased weather is selectable only in the GM edition',()=>{
  function runEdition(edition) {
   const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
   dom.window.SANTARA_POKEMON_EDITION=edition;
-  const context=createContext({readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:dom.window,document:dom.window.document,location:dom.window.location,URLSearchParams,
+  const context=createContext({eligibleMegaForms,requiredStoneFor,matchesMegaStone,readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:dom.window,document:dom.window.document,location:dom.window.location,URLSearchParams,
     console,Map,Set,encodeURIComponent,setTimeout,clearTimeout});
   runInContext(js,context,{timeout:5000});
   const html=runInContext('quickMarkup()',context,{timeout:1000});
@@ -100,7 +101,7 @@ test('Pokémon search filters by name and generation without scrolling',()=>{
  const result={min:12,max:18,minPercent:10,maxPercent:15,defenderHP:120,currentDefHP:120,
    koChance:0,notes:[],warnings:[],meta:{category:'Special',type:'Fire',hits:1},basePower:90,
    accuracy:100,weather:'Clear',fullDescription:''};
- const context=createContext({readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:root,document:root.document,location:root.location,
+ const context=createContext({eligibleMegaForms,requiredStoneFor,matchesMegaStone,readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:root,document:root.document,location:root.location,
    URLSearchParams,console,Map,Set,encodeURIComponent,setTimeout,clearTimeout,
    computeDamage:()=>{calculations++;return result;},
    titleType:v=>v.charAt(0).toUpperCase()+v.slice(1)});
@@ -143,7 +144,7 @@ test('generation search labels reflect actual Pokémon calculator data',()=>{
  const realCalc=require('@smogon/calc');
  const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
  dom.window.SANTARA_POKEMON_EDITION='gm';dom.window.calc=realCalc;
- const context=createContext({readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:dom.window,document:dom.window.document,console,Map,Set,
+ const context=createContext({eligibleMegaForms,requiredStoneFor,matchesMegaStone,readTrainerUnlocks,unlockedWeather,SPECIAL_WEATHER,window:dom.window,document:dom.window.document,console,Map,Set,
   location:dom.window.location,URLSearchParams,setTimeout,clearTimeout});
  const src=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8').replace(/^import[^\n]*\n/gm,'');
  runInContext(src,context,{timeout:5000});
