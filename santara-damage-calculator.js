@@ -79,7 +79,7 @@ function quickMarkup(){
     '<div class="calc-quick-grid">'+
     '<label class="field calc-field-move">Move<input id="damage-move" list="calc-move-list" placeholder="e.g. Flamethrower" required></label>'+
     '<label class="field">Weather<select id="damage-weather">'+
-      ['Auto','Clear','Sun','Rain','Sand','Snow','Calamitous Sun','Royal Tempest'].map(x=>option(x,x,'Auto')).join('')+
+      (gm?['Auto','Clear','Sun','Rain','Sand','Snow','Calamitous Sun','Royal Tempest']:['Auto','Clear','Sun','Rain','Sand','Snow']).map(x=>option(x,x,'Auto')).join('')+
     '</select></label>'+
     '<label class="field">Battle mode<select id="damage-mode">'+option('Singles','Singles','Doubles')+option('Doubles','Doubles','Doubles')+'</select></label>'+
     '<div class="calc-actions"><button class="btn primary" id="damage-run" type="button">Calculate</button><button class="btn" id="damage-reload" type="button" title="Reload saved Pokémon">↻</button></div>'+
@@ -144,7 +144,8 @@ function refreshSide(side) {
 }
 function showResult(res) {
   const pct=Math.min(100,Math.max(0,res.maxPercent||0));
-  const notices=res.notes.map(s=>'<div class="calc-note">'+escape(s)+'</div>').join('');
+  const spoilerWeather=!gm&&['Calamitous Sun','Royal Tempest'].includes(res.weather);
+  const notices=spoilerWeather?'<div class="calc-note">An exclusive weather effect is active. Ask the GM for its details.</div>':res.notes.map(s=>'<div class="calc-note">'+escape(s)+'</div>').join('');
   const warnings=res.warnings.map(s=>'<div class="calc-warning">'+escape(s)+'</div>').join('');
   const ko=res.koChance===100?'Guaranteed OHKO':res.koChance===0?'No OHKO':res.koChance.toFixed(1)+'% OHKO chance';
   const more=res.warnings.length?' · '+res.warnings.length+' manual check'+(res.warnings.length===1?'':'s'):'';
@@ -157,10 +158,10 @@ function showResult(res) {
     '<details class="calc-result-details"><summary>Damage details'+more+'</summary>'+
     '<div class="calc-pills"><span class="chip">'+escape(res.meta.category)+' · '+escape(res.meta.type)+'</span>'+
     '<span class="chip">BP '+escape(res.basePower)+'</span><span class="chip">Accuracy '+escape(res.accuracy??'—')+'</span>'+
-    '<span class="chip">'+escape(res.weather)+' weather</span>'+
+    '<span class="chip">'+escape(spoilerWeather?'Exclusive':res.weather)+' weather</span>'+
     '<span class="chip">'+escape(res.meta.hits)+' hit(s)</span></div>'+
     '<p class="calc-muted">The OHKO estimate assumes the attack connects and excludes accuracy and other turn effects.</p>'+
-    (res.fullDescription?'<p class="calc-muted">'+escape(res.fullDescription)+'</p>':'')+
+    (!spoilerWeather&&res.fullDescription?'<p class="calc-muted">'+escape(res.fullDescription)+'</p>':'')+
     warnings+notices+'</details></section>';
 }
 function runCalculation() {
