@@ -61,6 +61,17 @@ export function hpAfterMaxChange(currentHp,oldMax,newMax){
  return Math.max(0,Math.min(next,Math.round(current+next-previous)));
 }
 
+// V6 uses cartridge HP with every IV effectively perfect (31).
+// EVs default to zero until a separate training system is defined.
+export function maxHpV6(stats,level,ev=0){
+ const base=Number(stats?.hp),lvl=Number(level),trained=Number(ev);
+ if(!Number.isInteger(base)||base<1||base>255)throw Error('A valid base HP is required for V6.');
+ if(!Number.isInteger(lvl)||lvl<1||lvl>100)throw Error('Pokémon level must be 1–100.');
+ if(!Number.isInteger(trained)||trained<0||trained>252)throw Error('HP EVs must be 0–252.');
+ if(base===1)return 1; // Shedinja
+ return Math.floor((2*base+31+Math.floor(trained/4))*lvl/100)+lvl+10;
+}
+
 // Legacy V4 formula retained for migration comparisons, not new assignments.
 
 export function maxHpV4Baseline(stats,level){
