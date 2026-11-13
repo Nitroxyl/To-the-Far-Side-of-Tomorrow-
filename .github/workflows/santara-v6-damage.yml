@@ -7,6 +7,8 @@ on:
       - 'pokemon-math.js'
       - 'tests/santara-damage-core.test.mjs'
       - 'tests/santara-browser-bundles.test.mjs'
+      - 'tests/santara-damage-layout.test.mjs'
+      - 'damage-calculator.html'
       - '.github/workflows/santara-v6-damage.yml'
   workflow_dispatch:
 permissions:
@@ -20,6 +22,6 @@ jobs:
         with:
           node-version: '22'
       - name: Install official calculator package
-        run: npm install --no-save --no-package-lock @smogon/calc@0.12.0
+        run: npm install --no-save --no-package-lock @smogon/calc@0.12.0 jsdom@26.1.0
       - name: Run damage adapter tests
-        run: node --test tests/santara-damage-core.test.mjs tests/santara-browser-bundles.test.mjs
+        run: node --test tests/santara-damage-core.test.mjs tests/santara-browser-bundles.test.mjs tests/santara-damage-layout.test.mjs
