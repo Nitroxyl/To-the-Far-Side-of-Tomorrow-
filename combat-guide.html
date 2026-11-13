@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1019">
+<title>V6 Combat Guide · Santara Fieldwork</title>
+<link rel="stylesheet" href="./pokemon-party.css">
+<style>
+.combat-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}
+.combat-layout .panel{margin:0}
+.combat-layout h2{font-size:19px;margin:0 0 12px}
+.combat-layout li{margin:9px 0;line-height:1.6}
+.combat-layout code{background:#142d3b;border-radius:4px;padding:2px 5px}
+.combat-formula{padding:12px 15px;background:#122d37;border:1px solid #456776;border-radius:10px;overflow-wrap:anywhere}
+@media(max-width:790px){.combat-layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="bar"><a class="brand" href="./index.html">✦ SANTARA <span>FIELDWORK</span></a><nav><a href="./index.html">Fieldwork</a><a href="./pokemon-party.html">My Pokémon</a><a href="./damage-calculator.html">Damage Calculator</a><a href="./inventory.html">Trainer Bag</a></nav></header>
+<main class="shell">
+<section class="hero"><div><span class="eyebrow">PLAYER COMBAT REFERENCE · V6</span><h1>Pokémon Combat<span class="accent">.</span></h1><p>Official Pokémon damage, Santara's grid-based encounters. This replaces all V5.3 damage dice and offense/defense tier multipliers.</p></div></section>
+<div class="combat-layout">
+<section class="panel"><h2>1. Start a turn</h2><ol><li>Check your Pokémon's current HP, status, held item and active battle mechanic.</li><li>Check movement and the range or shape of your chosen move. One grid square is 5 feet.</li><li>Choose a target in range. In competitive battles, resolve priority first, then effective Speed.</li><li>Use the <a href="./damage-calculator.html">Damage Calculator</a> to resolve damaging attacks.</li><li>Apply any post-hit effects such as recoil, healing, status chance or stat changes separately.</li></ol></section>
+<section class="panel"><h2>2. Damage and accuracy</h2><p>Enter the attacker, defender and move in the calculator. Adjust weather, terrain, screens, critical hits and other relevant conditions. The result is a possible HP damage range; it does not automatically subtract HP from the target.</p><p>Moves use their real Base Power, Attack or Sp. Atk, Defense or Sp. Def, STAB, type effectiveness and Pokémon level. Old damage dice are no longer used.</p><p>Roll/check accuracy and other random effects separately if they aren't explicitly modeled. In multi-target moves, the calculator accounts for cartridge-style spread mechanics when supported.</p></section>
+<section class="panel"><h2>3. HP and training</h2><p>Pokémon use the standard HP formula with fixed perfect IVs of 31 and a default of 0 HP EVs. Levels run from 1 to 100. The default Nature is neutral (Serious), unless the GM establishes a Nature or EV training system.</p><div class="combat-formula"><b>Maximum HP</b><p><code>floor((2 × Base HP + 31 + floor(HP EV / 4)) × Level / 100) + Level + 10</code></p><small>Shedinja remains at 1 HP.</small></div><p>Current HP is saved in your Pokémon record. If you take 12 damage, subtract 12 from current HP; no other dice multiplier is applied.</p></section>
+<section class="panel"><h2>4. Movement and range</h2><p>The campaign converts Pokémon Speed to movement squares for field encounters:</p><div class="combat-formula"><code>Squares = clamp(4 + floor(Base Speed / 30), 4, 12)</code></div><p>Each square is 5 feet. Move targeting follows its metadata (contact, ranged, spread or special shape). Use the GM's encounter grid ruling for line of sight, obstacles, cones and unusual abilities.</p><p>D&amp;D level = ceiling(Pokémon level ÷ 5), used for adventure progression, not the damage formula.</p></section>
+<section class="panel"><h2>5. Gimmicks and special forms</h2><p>Terastallization, Z-Moves, Mega Evolution and Dynamax are GM-granted unlocks. Mega Evolution also requires an assigned compatible Mega form and its held Mega Stone. The app enforces which transformations your trainer has unlocked.</p><p>Some Z-Move, Max Move, signature weather and custom battle effects still need GM adjudication. Do not treat their preliminary damage preview as a complete turn simulator.</p></section>
+<section class="panel"><h2>6. Move Memory, items and status</h2><p>Outside combat, use <a href="./pokemon-party.html">My Pokémon</a> to choose up to four moves your Pokémon has already learned. Learnset compatibility alone does not automatically teach a move. Your GM handles Egg, tutor and special unlocks; TMs are requested through your <a href="./inventory.html">Trainer Bag</a>.</p><p>Track burn, paralysis, poison and other statuses on your Pokémon page. Keep held items and consumed gimmicks up to date after battles.</p></section>
+</div>
+<footer>SANTARA REGIONAL RESEARCH NETWORK · V6 PLAYER COMBAT GUIDE</footer>
+</main>
+</body></html>
