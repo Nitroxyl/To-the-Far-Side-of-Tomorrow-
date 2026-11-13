@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1019">
+<title>Damage Calculator · Santara Fieldwork</title>
+<link rel="stylesheet" href="./pokemon-party.css?v=move-memory-20261109-1">
+<style>
+.calc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.calc-grid .panel{margin:0}
+.calc-grid .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.calc-grid .field.full,.calc-grid .full{grid-column:1/-1}
+.calc-grid .field{min-width:0}.calc-grid .field input,.calc-grid .field select{width:100%;min-width:0}
+.calc-advanced{margin:15px 0;border-top:1px solid var(--edge);padding-top:10px}
+.calc-advanced summary{color:var(--teal);cursor:pointer;font-weight:700}
+.calc-result{padding:22px;background:#102b33;border:1px solid #417c74;border-radius:16px}
+.calc-result strong{font-size:clamp(26px,4vw,42px);color:var(--teal)}
+.calc-result .meter{height:16px;position:relative;background:#0b1825;border-radius:10px;overflow:hidden;margin:12px 0}
+.calc-result .meter>span{display:block;height:100%;background:linear-gradient(90deg,#4aaeb0,#e4be77);min-width:0}
+.calc-pills{display:flex;flex-wrap:wrap;gap:10px}.calc-pills .chip{white-space:normal}
+.calc-warning{border-left:3px solid #f3ca81;padding:8px 12px;margin:8px 0;background:#342e27;color:#ffe4af}
+.calc-note{border-left:3px solid #61d8bd;padding:8px 12px;margin:8px 0;background:#17343b}
+.calc-ev{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0}
+.calc-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.calc-actions>button{min-width:150px}.calc-muted{color:var(--muted);font-size:13px}
+#calc-feedback{min-height:22px;color:#ffe4af}
+@media(max-width:800px){.calc-grid{grid-template-columns:1fr}.calc-ev{grid-template-columns:repeat(2,1fr)}}
+</style>
+<script src="./firebase-config.js"></script>
+<script>window.SANTARA_POKEMON_EDITION="player";</script>
+<script defer src="https://cdn.jsdelivr.net/npm/@smogon/calc@0.12.0/dist/data/production.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@smogon/calc@0.12.0/dist/production.min.js"></script>
+</head>
+<body>
+<header class="bar">
+<a class="brand" href="./index.html">✦ SANTARA <span>FIELDWORK</span></a>
+<nav><a href="./pokemon-party.html">My Pokémon</a><a href="./inventory.html">Trainer Bag</a><a href="./account-access.html">Account</a></nav>
+</header>
+<main class="shell">
+<section class="hero"><div><span class="eyebrow">SANTARA / COMBAT V6</span><h1>Damage Calculator<span class="accent">.</span></h1>
+<p>Cartridge-style Pokémon damage, fixed perfect IVs and Santara custom Pokémon. Damage is a preview and never changes saved HP.</p></div><span id="user-chip" class="chip">Checking account…</span></section>
+<p id="calc-feedback" role="status" aria-live="polite"></p>
+<div id="calc-app"><section class="panel">Loading the Pokémon calculation engine and your Trainer records…</section></div>
+<footer>SANTARA REGIONAL RESEARCH NETWORK · CALCULATIONS DO NOT UPDATE BATTLE RECORDS</footer>
+</main>
+<script type="module" src="./santara-damage-calculator.js?v=v6-20261113-1"></script>
+</body></html>
