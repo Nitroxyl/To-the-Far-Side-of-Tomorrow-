@@ -22,7 +22,51 @@ function signin(){
     '<div class="actions"><button class="btn primary" type="submit">Sign in</button><button class="btn" type="button" id="damage-google">Google sign-in</button></div></form></section>';
 }
 function displayName(p){return (p.nickname?p.nickname+' · ':'')+(p.speciesName||p.name||p.speciesKey||'Pokémon')+' (Lv '+(p.level||50)+')';}
-function makeChoices(gen,records,customSpecies){
+function combineByName(base,overrides){
+ const map=new Map();
+ for(const record of [...base,...overrides])if(record?.name)map.set(canon(record.name),record);
+ return [...map.values()];
+}
+async function gmContentPresets(){
+ if(!gm)return {species:[],megas:[],moves:[],abilities:[]};
+ const groups={species:[],megas:[],moves:[],abilities:[]};
+ try{
+  const mod=await import('./santara-catalog.js');
+  for(const group of ['fossils','megas','story','drafts']){
+   for(const entry of mod.santaraCatalogEntries(group)){
+    const table=entry.collection;
+    const type=table==='santara_species_overrides'?'species':
+      table==='santara_mega_forms'?'megas':
+      table==='santara_custom_moves'?'moves':
+      table==='santara_custom_abilities'?'abilities':null;
+    if(type)groups[type].push({slug:entry.id,...entry.data});
+   }
+  }
+ }catch(error){console.warn('Optional GM presets unavailable:',error.message)}
+ return groups;
+}
+function gmMegaChoices(gen,megaForms,customSpecies){
+ if(!gm)return [];
+ return megaForms.filter(form=>form?.name&&form?.baseStats&&form?.baseSpeciesKey).map(form=>{
+  const base=gen.species.get(canon(form.baseSpeciesKey));
+  const custom=customSpecies.find(c=>canon('custom:'+c.slug)===canon(form.baseSpeciesKey));
+  const raw=base?.baseStats;
+  const ordinaryStats=raw?{
+   hp:raw.hp,attack:raw.atk,defense:raw.def,specialAttack:raw.spa,specialDefense:raw.spd,speed:raw.spe
+  }:(custom?.baseStats||form.baseStats);
+  const normalTypes=base?.types||custom?.types||form.types;
+  const baseAbility=base?.abilities?.[0]||custom?.abilities?.[0]||'';
+  const source={
+   name:form.name,speciesName:base?.name||custom?.name||form.baseSpeciesKey,
+   speciesKey:form.baseSpeciesKey,baseStats:ordinaryStats,types:normalTypes,
+   ability:baseAbility,level:50,megaForm:form,megaActive:true,heldItem:''
+  };
+  return {key:'gmmega:'+form.slug,label:form.name+' · GM preview',kind:'mega',
+   source,generation:base?generationOf(form.baseSpeciesKey):null};
+ });
+}
+
+function makeChoices(gen,records,customSpecies,megaForms=[]){
   const mine=records.map(m=>({key:'r:'+m.id,label:displayName(m),source:m,kind:'registered',generation:generationOf(m.speciesKey)}));
   const customs=customSpecies.map(m=>({key:'c:'+m.slug,label:m.name+' · Santara custom',kind:'custom',generation:null,source:{
     name:m.name,speciesName:m.name,speciesKey:m.slug,baseStats:m.baseStats,types:m.types,abilities:m.abilities,level:50
@@ -35,7 +79,7 @@ function makeChoices(gen,records,customSpecies){
       },types:m.types,ability:m.abilities?.[0]||'',level:50
     }
   }));
-  return [...mine,...customs,...official];
+  return [...mine,...gmMegaChoices(gen,megaForms,customSpecies),...customs,...official];
 }
 function generationOf(species) {
   const key=canon(species);
@@ -63,7 +107,7 @@ function matchingChoices(query) {
 function selectChoices(selected,items=choices){
   let group='',out='';
   for(const item of items) {
-    const name=item.kind==='registered'?'Saved Trainer Pokémon':item.kind==='custom'?'Santara species':'Official Pokémon';
+    const name=item.kind==='registered'?'Saved Trainer Pokémon':item.kind==='mega'?'GM Mega previews':item.kind==='custom'?'Santara species':'Official Pokémon';
     if(group!==name){if(group)out+='</optgroup>';group=name;out+='<optgroup label="'+escape(name)+'">';}
     out+=option(item.key,item.label,selected);
   }
@@ -140,8 +184,11 @@ function fieldMarkup(){
     toggleMarkup('damage-screen','Light Screen')+
     toggleMarkup('damage-veil','Aurora Veil')+
     toggleMarkup('damage-help','Helping Hand')+
-    toggleMarkup('damage-exposed','Exposed')+
-    '</div><p class="calc-muted">The calculator previews damage only; accuracy, movement, turn restrictions and residual effects are resolved separately.</p>'+
+    toggleMarkup('damage-exposed','Target is Exposed')+
+    toggleMarkup('damage-chorus','Aurora Chorus veil active')+
+    toggleMarkup('damage-siege','Siege Battery +1 Sp. Atk earned')+
+    toggleMarkup('damage-protect','Defender used Protect')+
+    '</div><p class="calc-muted">Check Aurora Chorus veil only while its 5-turn effect is active. The Siege Battery bonus applies after a hit triggers it. Exposed applies to System Override and Glitch Pulse.</p><p class="calc-muted">The calculator previews damage only; accuracy, movement, turn restrictions and residual effects are resolved separately.</p>'+
     '</details></section>';
 }
 function el(key){return document.getElementById(key);}
@@ -219,7 +266,10 @@ function runCalculation() {
       lightScreen:el('damage-screen').checked,auroraVeil:el('damage-veil').checked,
       helpingHand:el('damage-help').checked,
       critical:el('damage-crit').checked,hits:readNum('damage-hits'),
-      exposed:el('damage-exposed').checked
+      exposed:el('damage-exposed').checked,
+      auroraChorusActive:el('damage-chorus').checked,
+      siegeBoosted:el('damage-siege').checked,
+      protection:el('damage-protect').checked
     });
     showResult(result);msg('');
   }catch(err){msg('Calculation failed: '+(err.message||String(err)));el('damage-results').innerHTML='';console.error('Santara damage calculator',err);}
@@ -252,11 +302,17 @@ async function reloadData(){
     if(!session)return;
     const records=applyMegaOverlays(p.docs.map(d=>({id:d.id,...d.data()})),
       Object.fromEntries(a.docs.map(d=>[d.id,d.data()])));
-    customMoves=m.docs.map(d=>({slug:d.id,...d.data()}));
-    customAbilities=ab.docs.map(d=>({slug:d.id,...d.data()}));
-    const customSpecies=playerVisibleCustomSpecies(c.docs.map(d=>({slug:d.id,...d.data()})),records);
+    const presets=await gmContentPresets();
+    const liveMega=gm?await getDocs(collection(store,'santara_mega_forms'))
+      .then(snapshot=>snapshot.docs.map(d=>({slug:d.id,...d.data()})))
+      .catch(error=>{console.warn('GM Mega preview collection unavailable:',error.message);return [];}):[];
+    customMoves=combineByName(presets.moves,m.docs.map(d=>({slug:d.id,...d.data()})));
+    customAbilities=combineByName(presets.abilities,ab.docs.map(d=>({slug:d.id,...d.data()})));
+    const allCustomSpecies=combineByName(presets.species,c.docs.map(d=>({slug:d.id,...d.data()})));
+    const customSpecies=gm?allCustomSpecies:playerVisibleCustomSpecies(allCustomSpecies,records);
+    const megaForms=combineByName(presets.megas,liveMega);
     const gen=engine().Generations.get(9);
-    choices=makeChoices(gen,records,customSpecies);
+    choices=makeChoices(gen,records,customSpecies,megaForms);
     byKey=new Map(choices.map(x=>[x.key,x]));
     moves=[...new Set([...customMoves.map(x=>x.name),...[...gen.moves].map(x=>x.name)])].sort((a,b)=>a.localeCompare(b));
     abilities=[...new Set([...customAbilities.map(x=>x.name),...[...gen.abilities].map(x=>x.name)])].sort();
