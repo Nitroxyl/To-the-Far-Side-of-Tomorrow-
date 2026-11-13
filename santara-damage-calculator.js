@@ -215,6 +215,15 @@ function refreshSide(side) {
   el(side+'-nature').value=source.nature||'Serious';
   el(side+'-status').value=source.status||'None';
   el(side+'-hp').value=source.currentHp!=null&&source.maxHp?Math.max(1,Math.round(100*source.currentHp/source.maxHp)):100;
+  if(side==='a'){
+    el('damage-siege').checked=false;
+    el('damage-exposed').checked=false;
+  }
+  if(side==='d'){
+    const defAbility=(source.megaActive&&source.megaForm?.ability)||source.ability||source.abilities?.[0]||'';
+    el('damage-chorus').checked=canon(defAbility)==='aurorachorus';
+    el('damage-exposed').checked=false;
+  }
   el(side+'-mega').checked=!!source.megaActive;
   el(side+'-mega').disabled=!source.megaForm;
   el(side+'-tera').checked=!!source.teraActive;
@@ -335,7 +344,10 @@ host.addEventListener('change',e=>{
   if(e.target.id==='d-choice')refreshSide('d');
   if(['a-mega','d-mega'].includes(e.target.id)){
     const side=e.target.id[0],source=sourceFor(side);
-    if(source?.megaForm)el(side+'-ability').value=e.target.checked?source.megaForm.ability:source.ability||source.abilities?.[0]||'';
+    if(source?.megaForm){
+      el(side+'-ability').value=e.target.checked?source.megaForm.ability:source.ability||source.abilities?.[0]||'';
+      if(side==='d')el('damage-chorus').checked=e.target.checked&&canon(source.megaForm.ability)==='aurorachorus';
+    }
   }
   if(['a-tera','d-tera'].includes(e.target.id))updateTeraVisibility(e.target.id[0]);
   if(e.target.closest('#calc-app')&&el('damage-results'))runCalculation();
