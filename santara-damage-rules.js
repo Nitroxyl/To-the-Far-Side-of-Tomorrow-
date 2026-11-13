@@ -6,7 +6,7 @@ const key = NORMALIZED;
 export const DAMAGE_RULE_ABILITIES = Object.freeze([
  'apexpredator','kingdomsend','perfectedninjutsu','bastionfurnace','tempestcrown',
  'aurorachorus','moltenedge','systemoverride','siegebattery','rootaccess',
- 'swordofruin','skybreaker'
+ 'swordofruin','skybreaker','auraguard'
 ]);
 const definitions = [
  ['Infernal Sweep','Fire','Special',95,100,{target:'allAdjacentFoes',effect:'10% chance to burn each target'}],
@@ -143,6 +143,9 @@ export function additionalDamageEffects({attacker,defender,move,activeWeather='C
   if(move.type==='Fire'&&match>0&&match<1){extra/=match;notes.push("Kingdom's End: Fire resistance is neutralized (immunity remains).");}
  }
  if(activeWeather==='Royal Tempest'&&move.type==='Electric'){extra*=1.3;notes.push('Royal Tempest: Electric damage +30%.');}
+ if(d==='auraguard'&&move.flags?.contact){
+  extra*=0.5;notes.push('Aura Guard: contact damage reduced by 50%.');
+ }
  if(a==='moltenedge'&&(move.type==='Fire'||move.flags?.slicing)){
   extra*=1.3;notes.push('Molten Edge: qualifying Fire or slicing move +30% damage.');
  }
