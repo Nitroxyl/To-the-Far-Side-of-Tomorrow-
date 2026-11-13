@@ -10,6 +10,7 @@ on:
       - 'santara-damage-calculator.js'
       - 'santara-spoiler-gates.js'
       - 'pokemon-party.js'
+      - 'pokemon-v6-hp-migration.js'
       - 'pokemon-party.html'
       - 'tests/santara-spoiler-gates.test.mjs'
       - 'pokemon-math.js'
