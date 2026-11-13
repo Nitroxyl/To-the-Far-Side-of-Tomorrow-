@@ -10,6 +10,9 @@ on:
       - 'santara-damage-calculator.js'
       - 'santara-spoiler-gates.js'
       - 'pokemon-party.js'
+      - 'tests/santara-player-release.test.mjs'
+      - 'SANTARA_COMBAT_V53.md'
+      - 'combat-guide.html'
       - 'pokemon-v6-hp-migration.js'
       - 'pokemon-party.html'
       - 'tests/santara-spoiler-gates.test.mjs'
@@ -33,4 +36,4 @@ jobs:
       - name: Install official calculator package
         run: npm install --no-save --no-package-lock @smogon/calc@0.12.0 jsdom@26.1.0
       - name: Run damage adapter tests
-        run: node --test tests/santara-trainer-unlocks.test.mjs tests/santara-custom-mechanics.test.mjs tests/santara-damage-core.test.mjs tests/santara-browser-bundles.test.mjs tests/santara-damage-layout.test.mjs tests/santara-spoiler-gates.test.mjs
+        run: node --test tests/santara-player-release.test.mjs tests/santara-trainer-unlocks.test.mjs tests/santara-custom-mechanics.test.mjs tests/santara-damage-core.test.mjs tests/santara-browser-bundles.test.mjs tests/santara-damage-layout.test.mjs tests/santara-spoiler-gates.test.mjs
