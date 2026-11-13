@@ -25,11 +25,16 @@ test('GM-assigned form becomes an intentional player unlock',()=>{
  assert.equal(ownsEclipseForm(assigned),true);
  assert.equal(playerVisibleCustomSpecies(species,assigned).length,4);
 });
-test('player party and calculator use the spoiler gate',()=>{
+test('player party and calculator still gate unpublished story forms',()=>{
  const party=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
- const calculator=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8');
- assert.match(party,/playerVisibleCustomSpecies\(customs,pokemon\)\.map/);
- assert.match(party,/if\(isUnreleasedEclipse\(q\)/);
- assert.match(party,/const found=playerVisibleCustomSpecies\(customs,pokemon\)\.find/);
- assert.match(calculator,/const customSpecies=gm\?allCustomSpecies:playerVisibleCustomSpecies\(allCustomSpecies,records\)/);
+ const calc=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8');
+ assert.ok(party.includes('availableCustomSpecies()'));
+ assert.ok(party.includes('if(isUnreleasedEclipse(q)'));
+ assert.ok(party.includes('const found=availableCustomSpecies().find'));
+ assert.ok(calc.includes("visiblePlayerContent('species'"));
+ assert.ok(calc.includes('playerVisibleCustomSpecies('));
+});
+test('a direct GM reveal unlocks an unreleased story form',()=>{
+ const shown=playerVisibleCustomSpecies(species,owned,{speciesUnlocks:['yveltal-eclipse-forme']});
+ assert.equal(shown.length,4);
 });
