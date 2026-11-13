@@ -269,7 +269,7 @@ function runCalculation() {
     const result=computeDamage(engine(),{
       attacker,defender,moveName:readStr('damage-move'),
       attackerSettings:readSide('a'),defenderSettings:readSide('d'),
-      customMoves,customAbilities,
+      customMoves,customAbilities,allowUnregisteredCustomMoves:gm,
       weather:readStr('damage-weather'),terrain:readStr('damage-terrain'),
       gameType:readStr('damage-mode'),reflect:el('damage-reflect').checked,
       lightScreen:el('damage-screen').checked,auroraVeil:el('damage-veil').checked,
