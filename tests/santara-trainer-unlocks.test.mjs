@@ -65,12 +65,12 @@ test('form saves validated gimmicks and content lists in one document',()=>{
 test('Player tracker and calculator enforce per-trainer grants',()=>{
  const party=readFileSync(new URL('../pokemon-party.js',import.meta.url),'utf8');
  const calc=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8');
- assert.match(party,/visiblePlayerContent\\('species'/);
- assert.match(party,/playerProgressionSummary/);
- assert.match(calc,/getDoc\\(doc\\(store,'santara_trainer_gimmicks',session\\.uid\\)\\)/);
- assert.match(calc,/visiblePlayerContent\\('moves'/);
- assert.match(calc,/unlockedWeather\\(playerProgression,name\\)/);
- assert.match(calc,/megaAllowed=gm\\|\\|playerProgression\\.mega/);
- assert.match(calc,/teraAllowed=gm\\|\\|playerProgression\\.tera/);
- assert.match(calc,/dynamaxAllowed=gm\\|\\|playerProgression\\.dynamax/);
+ for(const needle of ["visiblePlayerContent('species'","playerProgressionSummary"])assert.ok(party.includes(needle),needle);
+ for(const needle of [
+  "getDoc(doc(store,'santara_trainer_gimmicks',session.uid))",
+  "visiblePlayerContent('moves'","unlockedWeather(playerProgression,name)",
+  "megaAllowed=gm||playerProgression.mega",
+  "teraAllowed=gm||playerProgression.tera",
+  "dynamaxAllowed=gm||playerProgression.dynamax"
+ ])assert.ok(calc.includes(needle),needle);
 });
