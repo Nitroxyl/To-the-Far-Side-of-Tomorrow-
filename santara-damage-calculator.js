@@ -2,6 +2,7 @@ import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/1
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,getDocs,getDoc,doc,collection,query,where} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {applyMegaOverlays} from './pokemon-mega-assignments.js';
+import {SANTARA_MEGA_PREVIEWS,officialMegaPreviews,eligibleMegaForms,requiredStoneFor,matchesMegaStone,megaStoneNames,isStoryMega} from './santara-calculator-megas.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
 import {computeDamage,titleType} from './santara-damage-core.js?v=ev-free-20261114-1';
@@ -12,7 +13,7 @@ const config=window.SANTARA_FIREBASE_CONFIG,escape=v=>String(v??'').replace(/[&<
 const canon=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const option=(key,label,selected)=>'<option value="'+escape(key)+'"'+(key===selected?' selected':'')+'>'+escape(label)+'</option>';
 const TYPE_NAMES=['Normal','Fire','Water','Electric','Grass','Ice','Fighting','Poison','Ground','Flying','Psychic','Bug','Rock','Ghost','Dragon','Dark','Steel','Fairy'];
-let app,auth,store,session,choices=[],byKey=new Map(),moves=[],abilities=[],items=[],natureNames=[],customMoves=[],customAbilities=[],loaded=false,playerProgression=readTrainerUnlocks();
+let app,auth,store,session,choices=[],byKey=new Map(),moves=[],abilities=[],items=[],natureNames=[],customMoves=[],customAbilities=[],megaForms=[],loaded=false,playerProgression=readTrainerUnlocks();
 function msg(text){feedback.textContent=text||'';}
 function engine(){return window.calc?.Generations?.get?window.calc:null;}
 function signin(){
@@ -154,6 +155,11 @@ function sideMarkup(side,title,selected){
   toggleMarkup(side+'-mega','Mega')+
   toggleMarkup(side+'-tera','Tera')+
   toggleMarkup(side+'-dmax','Dynamax')+'</div>'+
+  '<div class="calc-mega-form" id="'+side+'-mega-wrap" hidden>'+
+  '<label class="field">Mega form<select id="'+side+'-mega-form"></select></label>'+
+  '<p class="calc-muted" id="'+side+'-mega-hint"></p>'+
+  '<button type="button" class="btn calc-mega-preview-btn" id="'+side+'-mega-stone">Use required stone (preview)</button>'+
+  '</div>'+
   '<label class="field calc-tera-type" id="'+side+'-tera-wrap" hidden>Tera type<select id="'+side+'-teratype">'+typeOptions('Normal')+'</select></label>'+
   '</div></div>'+
   '<details class="calc-advanced"><summary>Stat stages</summary><p class="calc-muted">Santara uses fixed 31 IVs and 0 EVs for every Pokémon. Only temporary battle stat changes need adjusting.</p>'+
@@ -205,6 +211,48 @@ function readSide(side){
   };
 }
 function sourceFor(side){return byKey.get(readStr(side+'-choice'))?.source;}
+function megaFormsFor(side){
+ return eligibleMegaForms(sourceFor(side),megaForms,{gm,unlocks:playerProgression});
+}
+function selectedMegaForm(side){
+ const available=megaFormsFor(side),slug=readStr(side+'-mega-form');
+ return available.find(x=>x.slug===slug)||available[0]||null;
+}
+function syncMegaAbility(side){
+ const source=sourceFor(side),mega=el(side+'-mega')?.checked,form=selectedMegaForm(side);
+ if(!source)return;
+ el(side+'-ability').value=mega&&form?form.ability:source.ability||source.abilities?.[0]||'';
+ if(side==='d')el('damage-chorus').checked=Boolean(mega&&form&&canon(form.ability)==='aurorachorus');
+}
+function refreshMegaControls(side,fromItem=false){
+ const source=sourceFor(side);if(!source)return;
+ const select=el(side+'-mega-form'),toggle=el(side+'-mega'),wrap=el(side+'-mega-wrap');
+ const hint=el(side+'-mega-hint'),stoneButton=el(side+'-mega-stone');
+ const forms=megaFormsFor(side),held=readStr(side+'-item');
+ const picked=fromItem?forms.find(f=>matchesMegaStone(held,requiredStoneFor(source,f))):null;
+ const old=select.value,assigned=source.megaForm?.slug;
+ const chosen=picked?.slug||(forms.some(f=>f.slug===old)?old:
+   forms.some(f=>f.slug===assigned)?assigned:forms[0]?.slug)||'';
+ select.innerHTML=forms.map(form=>option(form.slug,form.name,chosen)).join('');
+ select.value=chosen;
+ wrap.hidden=!forms.length;
+ const form=forms.find(f=>f.slug===chosen),required=requiredStoneFor(source,form);
+ const allowed=(gm||playerProgression.mega)&&Boolean(form);
+ const hasStone=allowed&&matchesMegaStone(held,required);
+ hint.textContent=!form?'No compatible Mega form unlocked.':
+   hasStone?'Required Mega Stone equipped: '+required:
+   'Requires '+required+' in the held item slot.';
+ stoneButton.hidden=!allowed||hasStone;
+ stoneButton.textContent=form?'Preview with '+required:'Use required stone (preview)';
+ toggle.disabled=!hasStone;
+ if(!hasStone)toggle.checked=false;
+}
+function calculationSource(side){
+ const source=sourceFor(side),mega=Boolean(el(side+'-mega')?.checked);
+ const form=mega?selectedMegaForm(side):null;
+ return source?{...source,megaForm:form,megaActive:mega,
+   megaRequiredStone:mega?requiredStoneFor(source,form):''}:null;
+}
 function refreshSide(side) {
   const source=sourceFor(side);
   if(!source)return;
