@@ -49,3 +49,39 @@ test('calculator CSS makes damage results sticky and checkbox labels horizontal'
  assert.match(html,/\.calc-toggle input\[type=checkbox\]\s*\{[^}]*width:17px;/);
  assert.match(html,/@media\(max-width:800px\)/);
 });
+
+test('unreleased weather is selectable only in the GM edition',()=>{
+ const js=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8').replace(/^import[^\n]*\n/gm,'');
+ function runEdition(edition) {
+  const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div><div id="damage-results"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
+  dom.window.SANTARA_POKEMON_EDITION=edition;
+  const context=createContext({window:dom.window,document:dom.window.document,location:dom.window.location,URLSearchParams,
+    console,Map,Set,encodeURIComponent,setTimeout,clearTimeout});
+  runInContext(js,context,{timeout:5000});
+  const html=runInContext('quickMarkup()',context,{timeout:1000});
+  dom.window.document.querySelector('#calc-app').innerHTML=html;
+  return {dom,context,labels:[...dom.window.document.querySelector('#damage-weather').options].map(x=>x.value)};
+ }
+ const gm=runEdition('gm');
+ const player=runEdition('player');
+ for(const expected of ['Auto','Clear','Sun','Rain','Sand','Snow']){
+  assert.ok(gm.labels.includes(expected));
+  assert.ok(player.labels.includes(expected));
+ }
+ for(const secret of ['Calamitous Sun','Royal Tempest']){
+  assert.ok(gm.labels.includes(secret),'GM should have access to '+secret);
+  assert.ok(!player.labels.includes(secret),'Players must not see '+secret);
+ }
+ // The core still calculates special weather if activated by an ability; the player
+ // receives its damage result without seeing the unreleased name or rules text.
+ const result={min:25,max:34,minPercent:20,maxPercent:27,defenderHP:125,currentDefHP:125,koChance:0,
+   notes:['Calamitous Sun blocks Water attacks.'],warnings:[],meta:{category:'Special',type:'Fire',hits:1},
+   basePower:95,accuracy:100,weather:'Calamitous Sun',fullDescription:'Kingdom’s End'};
+ runInContext('showResult('+JSON.stringify(result)+')',player.context);
+ const text=player.dom.window.document.querySelector('#damage-results').textContent;
+ assert.ok(!text.includes('Calamitous Sun'));
+ assert.ok(!text.includes('Kingdom'));
+ assert.match(text,/Exclusive weather/);
+ runInContext('showResult('+JSON.stringify(result)+')',gm.context);
+ assert.match(gm.dom.window.document.querySelector('#damage-results').textContent,/Calamitous Sun/);
+});
