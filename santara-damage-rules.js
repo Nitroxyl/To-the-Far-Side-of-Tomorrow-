@@ -107,10 +107,13 @@ export function setupSpecialEffects({attacker,defender,move,weather='Auto',expos
   if(defender.pokemon.types.includes('Flying')){
    const without=defender.pokemon.types.filter(t=>t!=='Flying');
    defender.pokemon.types=without.length?without:['Normal'];
+   defender.pokemon.species.types=[...defender.pokemon.types]; // calc.calculate clones from species overrides
    notes.push('Skybreaker: Flying-type Ground immunity bypassed.');
   }
   if(key(defender.ability)==='levitate'||key(defender.ability)==='rootaccess'){
    defender.pokemon.ability=undefined;
+   defender.pokemon.species.abilities={0:''};
+   defender.ability='';
    notes.push('Skybreaker: Levitate immunity bypassed.');
   }
  }
