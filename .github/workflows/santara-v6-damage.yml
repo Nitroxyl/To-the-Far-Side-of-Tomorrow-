@@ -1,0 +1,24 @@
+name: Santara V6 damage regression
+on:
+  push:
+    paths:
+      - 'santara-damage-core.js'
+      - 'santara-damage-calculator.js'
+      - 'pokemon-math.js'
+      - 'tests/santara-damage-core.test.mjs'
+      - '.github/workflows/santara-v6-damage.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  calculator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install official calculator package
+        run: npm install --no-save --no-package-lock @smogon/calc@0.12.0
+      - name: Run damage adapter tests
+        run: node --test tests/santara-damage-core.test.mjs
