@@ -20,11 +20,10 @@ export function statTable(base) {
   }
   return out;
 }
-export function legalEvs(input={}) {
-  const evs={};
-  for(const s of STAT_IDS)evs[s]=bound(input[s],0,252,0);
-  if(Object.values(evs).reduce((sum,v)=>sum+v,0)>510)throw Error('Total EVs cannot exceed 510.');
-  return evs;
+// EV training is disabled for Santara. Keep this adapter for older callers,
+// but always return zero EVs, even if a legacy UI supplies stored EV numbers.
+export function legalEvs(_input={}) {
+  return {...NO_EVS};
 }
 export function statusId(value) {
   return ({Burned:'brn',Paralyzed:'par',Poisoned:'psn','Badly poisoned':'tox',Asleep:'slp',Frozen:'frz',brn:'brn',par:'par',psn:'psn',tox:'tox',slp:'slp',frz:'frz'})[value]||'';
@@ -80,7 +79,7 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
     gender:'M',
     nature:settings.nature || 'Serious',
     ivs:{...PERFECT_IVS},
-    evs:legalEvs(settings.evs),
+    evs:{...NO_EVS},
     boosts:{...NO_EVS,...settings.boosts},
     ability:engineAbility||undefined,
     item,
