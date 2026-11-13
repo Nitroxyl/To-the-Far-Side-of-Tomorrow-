@@ -770,7 +770,7 @@ function detail(m){
   const cls=info?.classification||classifyMove(name,special||null);
   const tags=classificationLabels(cls).map(label=>`<span class="move-class">${esc(label)}</span>`).join('');
   const stats=info?.type?`${esc(info.type)} · BP ${info.power??'—'} · Accuracy ${info.accuracy??'—'}`:'BP / accuracy unavailable';
-  return `<div class="move"><b>${esc(name)}</b><div class="move-classifications">${tags}</div><p class="hint">${stats}</p>${info?.dice?`<p class="hint">Damage dice: ${esc(info.dice)}</p>`:''}${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
+  return `<div class="move"><b>${esc(name)}</b><div class="move-classifications">${tags}</div><p class="hint">${stats}</p>${info?.description?`<p class="hint">${esc(info.description)}</p>`:''}</div>`;
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
  ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm),megaAssignments[m.id]?.requiredStone||'')}<section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
