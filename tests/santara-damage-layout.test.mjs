@@ -85,3 +85,49 @@ test('unreleased weather is selectable only in the GM edition',()=>{
  runInContext('showResult('+JSON.stringify(result)+')',gm.context);
  assert.match(gm.dom.window.document.querySelector('#damage-results').textContent,/Calamitous Sun/);
 });
+
+test('Pokémon search filters by name and generation without scrolling',()=>{
+ const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
+ const root=dom.window;root.SANTARA_POKEMON_EDITION='player';
+ root.calc={Generations:{get:()=>({moves:{get:()=>({basePower:90})}})}};
+ let calculations=0;
+ const result={min:12,max:18,minPercent:10,maxPercent:15,defenderHP:120,currentDefHP:120,
+   koChance:0,notes:[],warnings:[],meta:{category:'Special',type:'Fire',hits:1},basePower:90,
+   accuracy:100,weather:'Clear',fullDescription:''};
+ const context=createContext({window:root,document:root.document,location:root.location,
+   URLSearchParams,console,Map,Set,encodeURIComponent,setTimeout,clearTimeout,
+   computeDamage:()=>{calculations++;return result;},
+   titleType:v=>v.charAt(0).toUpperCase()+v.slice(1)});
+ const src=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8')
+   .replace(/^import[^\n]*\n/gm,'');
+ runInContext(src,context,{timeout:5000});
+ runInContext("choices=["+
+ "{key:'r:charcadet',kind:'registered',label:'Sparky · Charcadet (Lv 15)',generation:9,source:{id:'charcadet',speciesName:'Charcadet',speciesKey:'charcadet',nickname:'Sparky',level:15,types:['Fire'],ability:'Flash Fire',moves:['Flamethrower']}},"+
+ "{key:'r:kingler',kind:'registered',label:'Kingler (Lv 40)',generation:1,source:{id:'kingler',speciesName:'Kingler',speciesKey:'kingler',level:40,types:['Water'],ability:'Hyper Cutter'}},"+
+ "{key:'o:ceruledge',kind:'official',label:'Ceruledge',generation:9,source:{name:'Ceruledge',speciesName:'Ceruledge',speciesKey:'ceruledge',level:50,types:['Fire','Ghost'],ability:'Flash Fire'}},"+
+ "{key:'o:charizard',kind:'official',label:'Charizard',generation:1,source:{name:'Charizard',speciesName:'Charizard',speciesKey:'charizard',level:50,types:['Fire','Flying'],ability:'Blaze'}}"+
+ "];byKey=new Map(choices.map(x=>[x.key,x]));moves=['Flamethrower'];natureNames=['Serious'];abilities=[];items=[];draw();",context,{timeout:5000});
+ const search=root.document.querySelector('#a-search'),select=root.document.querySelector('#a-choice');
+ assert.ok(root.document.querySelector('#d-search'),'defender should have its own search');
+ assert.equal(select.options.length,4);
+ search.value='ceru';
+ search.dispatchEvent(new root.Event('input',{bubbles:true}));
+ assert.equal(select.options.length,1);
+ assert.equal(select.value,'o:ceruledge');
+ assert.equal(root.document.querySelector('#a-level').value,'50');
+ assert.ok(calculations>=2,'changing a matched Pokémon recalculates damage');
+ search.value='gen 9';
+ search.dispatchEvent(new root.Event('input',{bubbles:true}));
+ assert.deepEqual([...select.options].map(x=>x.value),['r:charcadet','o:ceruledge']);
+ search.value='Sparky';
+ search.dispatchEvent(new root.Event('input',{bubbles:true}));
+ assert.deepEqual([...select.options].map(x=>x.value),['r:charcadet']);
+ search.value='doesnotexist';
+ search.dispatchEvent(new root.Event('input',{bubbles:true}));
+ assert.match(root.document.querySelector('#a-match-count').textContent,/No matches/);
+ assert.equal(select.value,'r:charcadet','an unmatched query must not wipe the current selection');
+ search.value='';
+ search.dispatchEvent(new root.Event('input',{bubbles:true}));
+ assert.equal(select.options.length,4);
+ assert.equal(select.value,'r:charcadet');
+});
