@@ -53,7 +53,7 @@ test('calculator CSS makes damage results sticky and checkbox labels horizontal'
 test('unreleased weather is selectable only in the GM edition',()=>{
  const js=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8').replace(/^import[^\n]*\n/gm,'');
  function runEdition(edition) {
-  const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div><div id="damage-results"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
+  const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
   dom.window.SANTARA_POKEMON_EDITION=edition;
   const context=createContext({window:dom.window,document:dom.window.document,location:dom.window.location,URLSearchParams,
     console,Map,Set,encodeURIComponent,setTimeout,clearTimeout});
