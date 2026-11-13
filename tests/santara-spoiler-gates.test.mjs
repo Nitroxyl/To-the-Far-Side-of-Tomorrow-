@@ -31,5 +31,5 @@ test('player party and calculator use the spoiler gate',()=>{
  assert.match(party,/playerVisibleCustomSpecies\(customs,pokemon\)\.map/);
  assert.match(party,/if\(isUnreleasedEclipse\(q\)/);
  assert.match(party,/const found=playerVisibleCustomSpecies\(customs,pokemon\)\.find/);
- assert.match(calculator,/const customSpecies=playerVisibleCustomSpecies\(c\.docs\.map/);
+ assert.match(calculator,/const customSpecies=gm\?allCustomSpecies:playerVisibleCustomSpecies\(allCustomSpecies,records\)/);
 });
