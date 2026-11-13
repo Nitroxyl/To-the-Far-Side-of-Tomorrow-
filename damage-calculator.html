@@ -91,6 +91,14 @@
 .calc-pokemon-search input[type=search]{background:#102a37;border-color:#518294}
 .calc-pokemon-search input[type=search]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .calc-match-count{margin:5px 0 9px!important;font-size:11px;color:var(--muted);min-height:15px}
+
+/* Species-based Mega Evolution previews and stone requirements. */
+.calc-mega-form{margin:10px 0 3px;padding:11px 13px;border:1px solid #3c6974;border-radius:11px;background:#102c37}
+.calc-mega-form[hidden]{display:none}
+.calc-mega-form .field{margin:0}
+.calc-mega-form .calc-muted{margin:8px 0;line-height:1.45}
+.calc-mega-preview-btn{font-size:12px;padding:7px 10px;white-space:normal;text-align:left}
+.calc-mega-preview-btn[hidden]{display:none}
 </style>
 <script src="./firebase-config.js"></script>
 <script>window.SANTARA_POKEMON_EDITION="player";</script>
@@ -109,5 +117,5 @@
 <div id="calc-app"><section class="panel">Loading the Pokémon calculation engine and your Trainer records…</section></div>
 <footer>SANTARA REGIONAL RESEARCH NETWORK · CALCULATIONS DO NOT UPDATE BATTLE RECORDS</footer>
 </main>
-<script type="module" src="./santara-damage-calculator.js?v=ev-free-20261114-1"></script>
+<script type="module" src="./santara-damage-calculator.js?v=megastone-preview-20261114-1"></script>
 </body></html>
