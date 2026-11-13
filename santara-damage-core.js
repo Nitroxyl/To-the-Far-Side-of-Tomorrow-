@@ -114,7 +114,7 @@ export function makeMove(calc,gen,moveName,customMoves=[],attackAbility='',force
     name:custom.name,type:titleType(custom.type),
     category:custom.category,basePower:bp,
     accuracy:custom.accuracy??100,
-    target:custom.target||'normal',priority:0,
+    target:custom.target||(['infernalsweep','schradesend'].includes(id(custom.name))?'allAdjacentFoes':'normal'),priority:0,
     flags:{contact:custom.contact?1:0, ...Object.fromEntries((custom.traits||[]).map(trait=>[trait,1]))}
   }:undefined;
   const multihit=official?.multihit;
@@ -161,10 +161,13 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     weather:standardWeather||undefined,terrain:terrain||undefined,gameType,
     isSwordOfRuin:id(a.ability)==='swordofruin'&&id(d.ability)!=='swordofruin',
     attackerSide:{isHelpingHand:helpingHand},
-    defenderSide:{isReflect:reflect,isLightScreen:lightScreen,
-      isAuroraVeil:auroraVeil||id(d.ability)==='aurorachorus'}
+    defenderSide:{isReflect:reflect&&id(moveName)!=='schradebreaker',isLightScreen:lightScreen&&id(moveName)!=='schradebreaker',
+      isAuroraVeil:(auroraVeil||id(d.ability)==='aurorachorus')&&id(moveName)!=='schradebreaker'}
   });
   if(chosen.custom?.description?.match(/charge|turn to charge/i))warnings.push('Charge-turn restrictions are not simulated; this result is the damaging turn only.');
+  if(chosen.custom?.description)warnings.push('Custom move secondary effects, recoil and once-per-battle restrictions are resolved at the table; this result is damage only.');
+  if(id(moveName)==='psycannon')notes.push('Psycannon: apply the user’s Speed drop after the attack.');
+  if(id(moveName)==='schradebreaker'&&(reflect||lightScreen||auroraVeil))notes.push('Schradebreaker destroys screens before damage.');
   const match=matchup(gen,chosen.move.type,d.pokemon.teraType?[d.pokemon.teraType]:d.pokemon.types);
   let extra=1;
   if(activeWeather==='Calamitous Sun'){
