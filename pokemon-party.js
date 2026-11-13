@@ -8,6 +8,7 @@ import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=sa
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
+import {readTrainerUnlocks,visiblePlayerContent,GIMMICK_LABELS,UNLOCK_LIST_FIELDS} from './santara-player-unlocks.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js?v=baxcalibrite-20261111-1';
 import {customAbilityScope,validCustomAbilityScope,eligibleAbilityNames,legalAbility,officialFamilyMoveCatalog,officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,applySantaraLearnset,moveKey} from './pokemon-forms-learnsets.js?v=lucario-rework-20261111-1';
@@ -28,7 +29,7 @@ const apiCache=new Map(),moveCache=new Map(),speciesFormCache=new Map();
 let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null,stopMoveMemory=null;
 let roleAllowed=false,accessApproved=false;
 let moveMemories={},activeMoveCatalog=null,moveCatalogError='';
-let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=initialUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},availableForms=[],formDiscoveryError='',busy=false;
+let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=readTrainerUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},availableForms=[],formDiscoveryError='',busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
 document.getElementById('page-title').innerHTML=GM_SITE?'Trainer Pokémon<span class="accent">.</span>':'My Pokémon<span class="accent">.</span>';
@@ -45,11 +46,21 @@ function trainerLabel(uid){
  if(name && name.toLowerCase()!=='new trainer')return name;
  return `${TRAINER_FALLBACK} #${String(uid).slice(0,6)}`;
 }
+function availableCustomSpecies(){
+ return GM_SITE?customs:playerVisibleCustomSpecies(
+  visiblePlayerContent('species',customs,pokemon,playerUnlocks),pokemon,playerUnlocks);
+}
+function availableCustomMoves(){
+ return GM_SITE?customMoves:visiblePlayerContent('moves',customMoves,pokemon,playerUnlocks);
+}
+function availableCustomAbilities(){
+ return GM_SITE?customAbilities:visiblePlayerContent('abilities',customAbilities,pokemon,playerUnlocks);
+}
 function customMoveByName(name){
- return customMoves.find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
+ return availableCustomMoves().find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
 }
 function customAbilityByName(name){
- return customAbilities.find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
+ return availableCustomAbilities().find(x=>x.name.toLowerCase()===String(name||'').trim().toLowerCase());
 }
 function registrationMoves(fd){
  const names=Array.from({length:4},(_,i)=>cap(fd.get('move'+(i+1)),48)).filter(Boolean);
@@ -283,7 +294,7 @@ function stop(){
  roleAllowed=false;accessApproved=false;
  mirrorDesired.clear();mirrorLast.clear();
  [stopAccess,stopPokemon,stopApprovals,stopCustoms,stopRules,stopRequests,stopCards,stopMoves,stopAbilities,stopGimmicks,stopMegaForms,stopRole,stopMegaAssignments,stopMoveMemory].forEach(fn=>fn?.());
- stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=stopMegaAssignments=stopMoveMemory=null;rawPokemon=[];megaAssignments={};moveMemories={};activeMoveCatalog=null;moveCatalogError='';pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=initialUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
+ stopAccess=stopPokemon=stopApprovals=stopCustoms=stopRules=stopRequests=stopCards=stopMoves=stopAbilities=stopGimmicks=stopMegaForms=stopRole=stopMegaAssignments=stopMoveMemory=null;rawPokemon=[];megaAssignments={};moveMemories={};activeMoveCatalog=null;moveCatalogError='';pokemon=[];trainers=[];trainerCards=[];customs=[];customMoves=[];customAbilities=[];requests=[];megaForms=[];trainerUnlocks={};playerUnlocks=readTrainerUnlocks();battleRules=null;collectionReady=false;collectionError='';allowed=false;
 }
 function guard(){
  if(!user){gate('Sign in to view your Pokémon');return}
@@ -319,7 +330,7 @@ function connect(){
  );
  stopGimmicks=onSnapshot(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
    if(GM_SITE)trainerUnlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
-   else playerUnlocks=snap.exists()?snap.data():initialUnlocks();
+   else playerUnlocks=readTrainerUnlocks(snap.exists()?snap.data():null);
    if(view==='party'||view==='storage'||chosen)render();
  },e=>console.warn('Unlock listener:',e.message));
  if(GM_SITE)stopMegaForms=onSnapshot(collection(store,'santara_mega_forms'),snap=>{
@@ -428,9 +439,9 @@ async function findSpecies(value){
  const q=cap(value,90);
  // Unreleased story forms cannot be requested by guessing their name.
  // An assigned form is an intentional GM unlock for this trainer.
- if(isUnreleasedEclipse(q)&&!playerVisibleCustomSpecies(customs,pokemon).some(x=>isUnreleasedEclipse(x)))
+ if(isUnreleasedEclipse(q)&&!availableCustomSpecies().some(x=>isUnreleasedEclipse(x)))
   throw Error('This species is not available for Trainer requests yet.');
- const found=playerVisibleCustomSpecies(customs,pokemon).find(x=>q.toLowerCase()===x.name.toLowerCase()||q.toLowerCase()===('custom:'+x.slug));
+ const found=availableCustomSpecies().find(x=>q.toLowerCase()===x.name.toLowerCase()||q.toLowerCase()===('custom:'+x.slug));
  const mon=found?customFrom(found):await fetchOfficial(q);
  await loadSpeciesForms(mon);
  if(mon.source==='official'&&!availableForms.some(x=>x.id===mon.speciesKey))
@@ -495,7 +506,7 @@ function requestForm(){
  <label class="field full">Pokémon species or custom form
  <input name="species" id="request-species" required maxlength="85" list="request-species-list"
  placeholder="e.g. Riolu, Dreepy or a registered custom Pokémon" value="${esc(d.speciesName||'')}">
- <datalist id="request-species-list">${playerVisibleCustomSpecies(customs,pokemon).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
+ <datalist id="request-species-list">${availableCustomSpecies().map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button type="button" class="btn" data-act="request-lookup">Fetch Pokémon stats</button></div>
  ${formPicker(d)}
  ${formDiscoveryError?'<p class="hint full">Official form lookup unavailable: '+esc(formDiscoveryError)+'</p>':''}
@@ -578,13 +589,23 @@ function roster(){
  <div class="tabs">${GM_SITE?`<select id="trainer-filter" aria-label="Select Trainer">${option('','Select trainer…',ownerFilter)}${trainers.map(t=>option(t.uid,trainerLabel(t.uid),ownerFilter)).join('')}</select><button class="btn primary" data-act="new">+ Assign Pokémon</button>`:'<button class="btn primary" data-act="request">+ Request Pokémon</button>'}
  <button class="btn ${view==='party'?'primary':''}" data-act="party">Party</button><button class="btn ${view==='storage'?'primary':''}" data-act="storage">Storage (${storage.length})</button></div></div>`;
 }
+function playerProgressionSummary(){
+ if(GM_SITE)return '';
+ const gimmicks=Object.entries(GIMMICK_LABELS).filter(([k])=>playerUnlocks[k]).map(([,v])=>v);
+ const reveals=Object.entries(UNLOCK_LIST_FIELDS).reduce((n,[,k])=>
+  n+(playerUnlocks[k]?.length||0),0);
+ return '<section class="panel"><h3>My Progression</h3>'+
+  '<p class="hint">Your GM unlocks mechanics and reveals as the adventure progresses. New unlocks appear automatically.</p>'+
+  '<p><b>Battle mechanics:</b> '+esc(gimmicks.join(', ')||'None unlocked yet')+'</p>'+
+  '<p class="hint">'+reveals+' special content reveals available. Previously assigned Pokémon and learned moves remain usable.</p></section>';
+}
 function listView(){
  const mine=GM_SITE?pokemon.filter(m=>m.ownerUid===ownerFilter):pokemon;
  const active=mine.filter(m=>Number(m.slot)>0&&Number(m.slot)<=6),storage=mine.filter(m=>!Number(m.slot)||Number(m.slot)>6);
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
- ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V6 Pokémon Damage</h3><p>The calculator uses the standard Pokémon damage formula, perfect IVs and registered Santara custom forms. Existing Pokémon HP is kept unchanged until the GM recalculates and saves it.</p><div class="actions"><a class="btn primary" href="./damage-calculator.html">Open Damage Calculator</a><button class="btn" data-act="rules">Legacy V5.3 settings</button></div></section>` :''}${gmMechanicsUI()}${requestsSection()}`;
+ ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V6 Pokémon Damage</h3><p>The calculator uses the standard Pokémon damage formula, perfect IVs and registered Santara custom forms. Existing Pokémon HP is kept unchanged until the GM recalculates and saves it.</p><div class="actions"><a class="btn primary" href="./damage-calculator.html">Open Damage Calculator</a><button class="btn" data-act="rules">Legacy V5.3 settings</button></div></section>` :''}${gmMechanicsUI()}${playerProgressionSummary()}${requestsSection()}`;
 }
 
 function moveMemoryView(mon){
@@ -777,7 +798,7 @@ function gmForm(){
  const defaultHp=validStats(d.baseStats)?maxHpV6(d.baseStats,level):'';
  return `<section class="panel"><div class="toolbar"><h2>${existing?'Edit Pokémon':'Assign Pokémon'}</h2><button class="btn" data-act="back">← Cancel</button></div>
  <form id="assign-form" class="form-grid">
- <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${playerVisibleCustomSpecies(customs,pokemon).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
+ <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${availableCustomSpecies().map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button class="btn" data-act="lookup" type="button">Fetch stats from PokéAPI / custom list</button><span class="hint" id="species-source">${draft?esc(d.source||''):'Look up a species before saving.'}</span></div>
  <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,trainerLabel(t.uid),d.ownerUid||ownerFilter)).join('')}</select></label>
  <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label><p id="v53-level-preview" class="hint full">D&D Lv ${dndLevel(level)}/20 · Proficiency +${proficiencyBonus(level)} · V6 recommended HP ${defaultHp}${d.maxHp!=null&&Number(d.maxHp)!==defaultHp?' · Manual/legacy HP preserved':''}</p>
