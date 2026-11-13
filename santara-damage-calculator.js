@@ -275,7 +275,7 @@ function checkedSide(side){
  const requested=canon(settings.ability);
  const original=sourceFor(side);
  const assigned=canon((settings.mega&&original?.megaForm?.ability)||original?.ability||original?.abilities?.[0]);
- if(!engine().Generations.get(9).abilities.get(requested) &&
+ if(!engine()?.Generations.get(9).abilities?.get?.(requested) &&
     !customAbilities.some(a=>canon(a.name)===requested) && requested!==assigned){
    throw Error('That custom ability has not been revealed or assigned to this Trainer.');
  }
