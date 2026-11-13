@@ -225,12 +225,17 @@ function refreshSide(side) {
     el('damage-chorus').checked=canon(defAbility)==='aurorachorus';
     el('damage-exposed').checked=false;
   }
-  el(side+'-mega').checked=!!source.megaActive;
-  el(side+'-mega').disabled=!source.megaForm;
-  el(side+'-tera').checked=!!source.teraActive;
+  const megaAllowed=gm||playerProgression.mega;
+  const teraAllowed=gm||playerProgression.tera;
+  const dynamaxAllowed=gm||playerProgression.dynamax;
+  el(side+'-mega').checked=megaAllowed&&!!source.megaActive;
+  el(side+'-mega').disabled=!megaAllowed||!source.megaForm;
+  el(side+'-tera').checked=teraAllowed&&!!source.teraActive;
+  el(side+'-tera').disabled=!teraAllowed;
   updateTeraVisibility(side);
   el(side+'-teratype').value=titleType(source.teraType||source.types?.[0]||'Normal');
-  el(side+'-dmax').checked=!!source.dynamaxTurns;
+  el(side+'-dmax').checked=dynamaxAllowed&&!!source.dynamaxTurns;
+  el(side+'-dmax').disabled=!dynamaxAllowed;
   for(const [key] of STATS)el(side+'-ev-'+key).value='0';
   for(const key of ['atk','def','spa','spd'])el(side+'-boost-'+key).value='0';
   if(side==='a'){
