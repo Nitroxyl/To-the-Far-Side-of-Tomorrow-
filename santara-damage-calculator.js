@@ -3,7 +3,7 @@ import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,Go
 import {getFirestore,getDocs,collection,query,where} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {applyMegaOverlays} from './pokemon-mega-assignments.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
-import {computeDamage,titleType} from './santara-damage-core.js?v=custom-content-20261114-1';
+import {computeDamage,titleType} from './santara-damage-core.js?v=custom-20261114-4';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
 const chip=document.querySelector('#user-chip'),feedback=document.querySelector('#calc-feedback');
@@ -31,7 +31,7 @@ async function gmContentPresets(){
  if(!gm)return {species:[],megas:[],moves:[],abilities:[]};
  const groups={species:[],megas:[],moves:[],abilities:[]};
  try{
-  const mod=await import('./santara-catalog.js');
+  const mod=await import('./santara-catalog.js?v=custom-20261114-4');
   for(const group of ['fossils','megas','story','drafts']){
    for(const entry of mod.santaraCatalogEntries(group)){
     const table=entry.collection;
