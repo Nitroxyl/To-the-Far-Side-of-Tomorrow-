@@ -72,6 +72,9 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
   if(isCustom && !gen.abilities.get(id(engineAbility)) && !['perfectedninjutsu','rootaccess'].includes(id(ability)))engineAbility='';
   const level=bound(settings.level ?? source.level,1,100,50);
   const rawItem=String(settings.item ?? source.heldItem ?? '').trim();
+  const requiredStone=String(source.megaRequiredStone||'').trim();
+  if(settings.mega && form.mega && requiredStone && id(rawItem)!==id(requiredStone))
+    throw Error('Mega Evolution requires '+requiredStone+' as the held item.');
   const item=gen.items.get(id(rawItem))?.name || '';
   if(rawItem&&!item && !/ite|crystal/i.test(rawItem))warnings.push('Custom item '+rawItem+' has no encoded damage effect.');
   const options={
