@@ -157,7 +157,7 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   for(const [side,p] of [['Attacker',a],['Defender',d]]){
     const abilityId=id(p.ability);
     const official=gen.abilities.get(abilityId);
-    if(p.ability&&!official&&!recognizedCustomAbility(p.ability)){
+    if(p.ability&&(abilityId==='auraguard'||(!official&&!recognizedCustomAbility(p.ability)))){
       warnings.push(side+' ability '+p.ability+' is not modeled yet; resolve its effects manually.');
     }
   }
