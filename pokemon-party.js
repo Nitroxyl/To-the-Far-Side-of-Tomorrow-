@@ -7,7 +7,7 @@ import {memoryKey,displayMoveName,uniqueMoves,eligibleLevelMoves,mergeMoveMemory
 import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
-import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
+import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,GIMMICK_LABELS,UNLOCK_LIST_FIELDS} from './santara-player-unlocks.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js?v=baxcalibrite-20261111-1';
