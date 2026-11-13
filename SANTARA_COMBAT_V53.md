@@ -1,3 +1,5 @@
+> **ARCHIVED — DO NOT USE FOR LIVE PLAY.** Santara now uses the V6 standard Pokémon damage and HP formulas. See [V6 Combat Guide](./combat-guide.html). V5.3 damage dice and tier multipliers are not active. Keep this document only for converting older saved records.
+
 # Santara Combat V5.3 — Pokémon Level / D&D Level Progression
 
 The V5.2 offense and defense tier table is retained. V5.3 adds predictable Pokémon-level scaling and a 1–20 D&D level equivalent, with no damage automation or dice rolling.
