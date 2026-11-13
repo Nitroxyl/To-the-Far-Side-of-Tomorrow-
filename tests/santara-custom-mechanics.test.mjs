@@ -21,8 +21,8 @@ const testCalc=(attacker,defender,moveName,options={})=>computeDamage(calc,{atta
 test('custom signatures and official reworks are available as rules',()=>{
  for(const n of ['Infernal Sweep','Schradebreaker',"Schrade's End",'Psycannon','Aura Lance',
  'Tar Rend','Riptide Bite','Faultline Gore','Glitch Pulse','Nihil Light',
- 'Razor Tempest','Machbreak','Crush Grip','Ice Hammer'])assert.ok(knownMove(n),n);
- assert.equal(Object.keys(SANTARA_DAMAGE_MOVES).length,14);
+ 'Razor Tempest','Machbreak','Calamity Slash','Crush Grip','Ice Hammer'])assert.ok(knownMove(n),n);
+ assert.equal(Object.keys(SANTARA_DAMAGE_MOVES).length,15);
 });
 test('Riptide Bite receives Strong Jaw through the bite flag',()=>{
  const base=testCalc(kingler,charizard,'Riptide Bite');
@@ -145,4 +145,28 @@ test('Aura Guard halves damage from contact moves, not ranged attacks',()=>{
  const rangedNormal=testCalc(charizard,kingler,'Earthquake');
  const rangedGuard=testCalc(charizard,defender,'Earthquake');
  assert.deepEqual([rangedNormal.min,rangedNormal.max],[rangedGuard.min,rangedGuard.max]);
+});
+
+test('Foretold Ruin boosts slicing attacks and blocks opposing Attack drops',()=>{
+ const original={...kingler,ability:'Hyper Cutter'};
+ const absol={...kingler,ability:'Foretold Ruin'};
+ const standard=testCalc(original,charizard,'Calamity Slash');
+ const boosted=testCalc(absol,charizard,'Calamity Slash');
+ assert.ok(boosted.max>standard.max);
+ const dropped=testCalc(absol,charizard,'Calamity Slash',{attackerSettings:{boosts:{atk:-2}}});
+ assert.deepEqual([dropped.min,dropped.max],[boosted.min,boosted.max]);
+});
+test('Calamity Slash ignores positive target Defense stages, but not negative stages',()=>{
+ const attacker={...kingler,ability:'Foretold Ruin'};
+ const base=testCalc(attacker,charizard,'Calamity Slash');
+ const positive=testCalc(attacker,charizard,'Calamity Slash',{defenderSettings:{boosts:{def:4}}});
+ assert.deepEqual([positive.min,positive.max],[base.min,base.max]);
+ const negative=testCalc(attacker,charizard,'Calamity Slash',{defenderSettings:{boosts:{def:-2}}});
+ assert.ok(negative.max>base.max);
+});
+test('unreleased custom signatures remain GM-only unless published or equipped',()=>{
+ const user={...charizard,moves:['Flamethrower']};
+ assert.throws(()=>testCalc(user,kingler,'Calamity Slash',{allowUnregisteredCustomMoves:false}),/not been unlocked/);
+ const unlocked={...user,moves:['Calamity Slash']};
+ assert.ok(testCalc(unlocked,kingler,'Calamity Slash',{allowUnregisteredCustomMoves:false}).min>0);
 });
