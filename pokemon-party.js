@@ -7,6 +7,7 @@ import {memoryKey,displayMoveName,uniqueMoves,eligibleLevelMoves,mergeMoveMemory
 import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
 import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmick-ui.js?v=mega-stone-20261027-2';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
+import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
 import {suggestedMegaStone,hasRequiredMegaStone} from './pokemon-mega-stones.js?v=baxcalibrite-20261111-1';
 import {customAbilityScope,validCustomAbilityScope,eligibleAbilityNames,legalAbility,officialFamilyMoveCatalog,officialMoveCatalog,officialMoveSource,pokemonLookupKey,fetchPokeApi,discoverPokemonForms,isGimmickVariety,readableForm,speciesKey,eligibleMoveNames,legalMove,applySantaraLearnset,moveKey} from './pokemon-forms-learnsets.js?v=lucario-rework-20261111-1';
@@ -425,7 +426,11 @@ async function loadSpeciesForms(mon){
 }
 async function findSpecies(value){
  const q=cap(value,90);
- const found=customs.find(x=>q.toLowerCase()===x.name.toLowerCase()||q.toLowerCase()===('custom:'+x.slug));
+ // Unreleased story forms cannot be requested by guessing their name.
+ // An assigned form is an intentional GM unlock for this trainer.
+ if(isUnreleasedEclipse(q)&&!playerVisibleCustomSpecies(customs,pokemon).some(x=>isUnreleasedEclipse(x)))
+  throw Error('This species is not available for Trainer requests yet.');
+ const found=playerVisibleCustomSpecies(customs,pokemon).find(x=>q.toLowerCase()===x.name.toLowerCase()||q.toLowerCase()===('custom:'+x.slug));
  const mon=found?customFrom(found):await fetchOfficial(q);
  await loadSpeciesForms(mon);
  if(mon.source==='official'&&!availableForms.some(x=>x.id===mon.speciesKey))
@@ -490,7 +495,7 @@ function requestForm(){
  <label class="field full">Pokémon species or custom form
  <input name="species" id="request-species" required maxlength="85" list="request-species-list"
  placeholder="e.g. Riolu, Dreepy or a registered custom Pokémon" value="${esc(d.speciesName||'')}">
- <datalist id="request-species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
+ <datalist id="request-species-list">${playerVisibleCustomSpecies(customs,pokemon).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button type="button" class="btn" data-act="request-lookup">Fetch Pokémon stats</button></div>
  ${formPicker(d)}
  ${formDiscoveryError?'<p class="hint full">Official form lookup unavailable: '+esc(formDiscoveryError)+'</p>':''}
@@ -772,7 +777,7 @@ function gmForm(){
  const defaultHp=validStats(d.baseStats)?maxHpV6(d.baseStats,level):'';
  return `<section class="panel"><div class="toolbar"><h2>${existing?'Edit Pokémon':'Assign Pokémon'}</h2><button class="btn" data-act="back">← Cancel</button></div>
  <form id="assign-form" class="form-grid">
- <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${customs.map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
+ <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${playerVisibleCustomSpecies(customs,pokemon).map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
  <div class="actions"><button class="btn" data-act="lookup" type="button">Fetch stats from PokéAPI / custom list</button><span class="hint" id="species-source">${draft?esc(d.source||''):'Look up a species before saving.'}</span></div>
  <label class="field">Assign to Trainer<select name="ownerUid" required>${trainers.map(t=>option(t.uid,trainerLabel(t.uid),d.ownerUid||ownerFilter)).join('')}</select></label>
  <label class="field">Level<input name="level" type="number" min="1" max="100" required value="${level}"></label><p id="v53-level-preview" class="hint full">D&D Lv ${dndLevel(level)}/20 · Proficiency +${proficiencyBonus(level)} · V6 recommended HP ${defaultHp}${d.maxHp!=null&&Number(d.maxHp)!==defaultHp?' · Manual/legacy HP preserved':''}</p>
