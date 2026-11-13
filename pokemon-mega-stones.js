@@ -18,7 +18,7 @@ const STONES={
  abomasnow:'Abomasite',gallade:'Galladite',audino:'Audinite',
  diancie:'Diancite',slowking:'Slowkingite',raichu:'Raichunite',
  dragonite:'Dragoninite',starmie:'Starminite',
- ceruledge:'Ceruledgite'
+ ceruledge:'Ceruledgite',porygon-z:'Porygon-Zite'
 };
 export function suggestedMegaStone(mon,form){
  if(!form)return '';
