@@ -6,6 +6,7 @@ on:
       - 'santara-damage-calculator.js'
       - 'pokemon-math.js'
       - 'tests/santara-damage-core.test.mjs'
+      - 'tests/santara-browser-bundles.test.mjs'
       - '.github/workflows/santara-v6-damage.yml'
   workflow_dispatch:
 permissions:
@@ -21,4 +22,4 @@ jobs:
       - name: Install official calculator package
         run: npm install --no-save --no-package-lock @smogon/calc@0.12.0
       - name: Run damage adapter tests
-        run: node --test tests/santara-damage-core.test.mjs
+        run: node --test tests/santara-damage-core.test.mjs tests/santara-browser-bundles.test.mjs
