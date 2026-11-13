@@ -75,7 +75,8 @@ test('Player can Mega Evolve selected base Ceruledge in the calculator',()=>{
  const js=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8')
   .replace(/^import[^\n]*\n/gm,'');
  runInContext(js,context,{timeout:5000});
- const statement="playerProgression=readTrainerUnlocks({mega:true});"+
+ const isGmBundle=js.includes("const playerProgression={mega:true");
+ const statement=(isGmBundle?"":"playerProgression=readTrainerUnlocks({mega:true});")+
  "choices="+JSON.stringify([
   {key:'r:ceru',kind:'registered',label:'Ceruledge (Lv 9)',source:ceruSource},
   {key:'r:kingler',kind:'registered',label:'Kingler (Lv 30)',source:{
