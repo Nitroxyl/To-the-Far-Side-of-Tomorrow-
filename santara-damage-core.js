@@ -193,7 +193,20 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   if(id(moveName)==='nihillight'&&protection)warnings.push('Nihil Light protection bypass is provisional.');
   if((a.form.mega&&attackerSettings.tera)||(d.form.mega&&defenderSettings.tera))
     warnings.push('Mega + Tera combination uses Santara house rules; confirm the intended STAB interaction.');
-  const result=calc.calculate(gen,a.pokemon,d.pokemon,chosen.move,field);
+  // Skybreaker uses Thousand Arrows' official immunity-bypass path while
+  // preserving the original Ground move's Base Power, category and flags.
+  // The ordinary Move name is retained for all UI and secondary effects.
+  let calculationMove=chosen.move;
+  if(id(a.ability)==='skybreaker'&&chosen.move.type==='Ground'){
+    calculationMove=new calc.Move(gen,'Thousand Arrows',{
+      overrides:{name:'Thousand Arrows',type:'Ground',
+        basePower:chosen.move.bp,category:chosen.move.category,
+        target:chosen.move.target,flags:chosen.move.flags,
+        ...(chosen.move.recoil?{recoil:chosen.move.recoil}:{})},
+      isCrit:chosen.move.isCrit,hits:chosen.move.hits
+    });
+  }
+  const result=calc.calculate(gen,a.pokemon,d.pokemon,calculationMove,field);
   const rolls=damageRolls(result.damage).map(v=>Math.max(0,Math.floor(v*extra)));
   const min=Math.min(...rolls),max=Math.max(...rolls);
   const defenderHP=d.pokemon.maxHP();
