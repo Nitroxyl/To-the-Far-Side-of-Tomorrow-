@@ -85,6 +85,12 @@
  .calc-result-main{gap:8px}
  .calc-result-ko{font-size:11px}
 }
+
+/* Filter thousands of official forms without losing the selected Pokémon. */
+.calc-pokemon-search{margin-top:10px;margin-bottom:8px}
+.calc-pokemon-search input[type=search]{background:#102a37;border-color:#518294}
+.calc-pokemon-search input[type=search]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.calc-match-count{margin:5px 0 9px!important;font-size:11px;color:var(--muted);min-height:15px}
 </style>
 <script src="./firebase-config.js"></script>
 <script>window.SANTARA_POKEMON_EDITION="player";</script>
@@ -103,5 +109,5 @@
 <div id="calc-app"><section class="panel">Loading the Pokémon calculation engine and your Trainer records…</section></div>
 <footer>SANTARA REGIONAL RESEARCH NETWORK · CALCULATIONS DO NOT UPDATE BATTLE RECORDS</footer>
 </main>
-<script type="module" src="./santara-damage-calculator.js?v=story-unlock-20261114-1"></script>
+<script type="module" src="./santara-damage-calculator.js?v=search-20261114-1"></script>
 </body></html>
