@@ -6,7 +6,7 @@ const key = NORMALIZED;
 export const DAMAGE_RULE_ABILITIES = Object.freeze([
  'apexpredator','kingdomsend','perfectedninjutsu','bastionfurnace','tempestcrown',
  'aurorachorus','moltenedge','systemoverride','siegebattery','rootaccess',
- 'swordofruin','skybreaker','auraguard'
+ 'swordofruin','skybreaker','auraguard','foretoldruin'
 ]);
 const definitions = [
  ['Infernal Sweep','Fire','Special',95,100,{target:'allAdjacentFoes',effect:'10% chance to burn each target'}],
@@ -20,6 +20,7 @@ const definitions = [
  ['Glitch Pulse','Electric','Special',90,100,{flags:{pulse:1},effect:'Damage +20% to an Exposed target (provisional)'}],
  ['Nihil Light','Dragon','Special',200,100,{target:'normal',effect:'Provisional: bypasses positive defensive stages, Fairy immunity and Protect; 2-turn recharge'}],
  ['Razor Tempest','Flying','Physical',75,100,{flags:{slicing:1},effect:'Non-contact slicing attack'}],
+ ['Calamity Slash','Ghost','Physical',85,100,{flags:{contact:1,slicing:1},effect:'Ignores positive target Defense stages'}],
  ['Machbreak','Dragon','Special',95,100,{target:'allAdjacentFoes',effect:'Ignores Steel resistance; Fairy immunity remains'}],
  ['Crush Grip','Normal','Physical',70,100,{willCrit:true,effect:'70 BP and always critical (Santara rework)'}],
  ['Ice Hammer','Ice','Physical',100,100,{effect:'100% accuracy (Santara rework)'}]
@@ -94,6 +95,7 @@ export function setupSpecialEffects({attacker,defender,move,weather='Auto',expos
   notes.push('System Override: marked target ability suppressed, Speed -1, and Normal/Electric damage +20%.');
  }else if(a==='systemoverride')manual.push('System Override: use Exposed when the chosen marked opponent is active; its Ability will be suppressed and Speed reduced.');
  if(d==='systemoverride')manual.push('System Override on the defender requires its separately marked target; no outgoing mark is inferred.');
+ if(a==='foretoldruin')manual.push('Foretold Ruin: opposing Attack drops are blocked; slicing damage is increased by 50%.');
  if(a==='rootaccess')manual.push('Root Access: Prankster gives status moves +1 priority. Levitate is accounted for; priority does not modify damage.');
  if(d==='rootaccess')manual.push('Root Access: Levitate immunity is included unless an overriding Ground effect applies.');
  if(d==='aurorachorus'&&auroraChorusActive)notes.push('Aurora Chorus: defensive Aurora Veil active. Turn duration is tracked by the GM.');
@@ -125,6 +127,10 @@ export function setupSpecialEffects({attacker,defender,move,weather='Auto',expos
  if(n==='faultlinegore')manual.push('Faultline Gore: recoil equals 25% of actual damage inflicted (capped by target current HP).');
  if(n==='infernalsweep')manual.push('Infernal Sweep: 10% burn chance for each target; the cone is resolved on the Santara grid.');
  if(n==='schradesend')manual.push("Schrade's End: charge one full round; usable once per battle. Directional cone and timing are handled by the GM.");
+ if(n==='calamityslash'&&defender.pokemon.boosts.def>0){
+  defender.pokemon.boosts.def=0;
+  notes.push('Calamity Slash: positive Defense stages ignored for this hit.');
+ }
  if(n==='machbreak')notes.push('Machbreak: Steel resistance is treated as neutral; Fairy immunity remains.');
  if(n==='glitchpulse')manual.push('Glitch Pulse is provisional: its Exposed target modifier is only active when the Exposed toggle is on.');
  if(n==='nihillight')warnings.push('Nihil Light is a provisional move. Its immunity/protection bypass and recharge are custom rulings that require GM approval.');
@@ -143,6 +149,9 @@ export function additionalDamageEffects({attacker,defender,move,activeWeather='C
   if(move.type==='Fire'&&match>0&&match<1){extra/=match;notes.push("Kingdom's End: Fire resistance is neutralized (immunity remains).");}
  }
  if(activeWeather==='Royal Tempest'&&move.type==='Electric'){extra*=1.3;notes.push('Royal Tempest: Electric damage +30%.');}
+ if(a==='foretoldruin'&&move.flags?.slicing){
+  extra*=1.5;notes.push('Foretold Ruin: slicing damage increased by 50%.');
+ }
  if(d==='auraguard'&&move.flags?.contact){
   extra*=0.5;notes.push('Aura Guard: contact damage reduced by 50%.');
  }
