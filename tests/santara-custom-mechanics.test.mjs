@@ -130,7 +130,19 @@ test('Roar of Time and other state effects show table instructions',()=>{
  assert.ok(provisional.warnings.some(x=>x.includes('provisional')));
 });
 test('unknown custom ability cannot pretend it was calculated',()=>{
- const actor={...charizard,ability:'Aura Guard'};
+ const actor={...charizard,ability:'Unscripted Aura'};
  const v=testCalc(actor,kingler,'Flamethrower');
  assert.ok(v.warnings.some(x=>x.includes('not modeled')));
+});
+
+test('Aura Guard halves damage from contact moves, not ranged attacks',()=>{
+ const defender={...kingler,ability:'Aura Guard'};
+ const contactNormal=testCalc(charizard,kingler,'Close Combat');
+ const contactGuard=testCalc(charizard,defender,'Close Combat');
+ assert.ok(contactGuard.max<contactNormal.max);
+ assert.ok(contactGuard.max<=Math.ceil(contactNormal.max/2));
+ assert.match(contactGuard.notes.join(' '),/Aura Guard/);
+ const rangedNormal=testCalc(charizard,kingler,'Earthquake');
+ const rangedGuard=testCalc(charizard,defender,'Earthquake');
+ assert.deepEqual([rangedNormal.min,rangedNormal.max],[rangedGuard.min,rangedGuard.max]);
 });
