@@ -1,4 +1,4 @@
-// Santara Combat V5.3. The V5.2 stat offense/defense tiers remain unchanged.
+// Santara combat V6: standard Pokémon HP and damage. Legacy V5.3 helpers are retained solely for migrating old saves.
 // Damage = dice × offense × level × STAB × type effectiveness × defense.
 // Every five Pokémon levels correspond to one D&D level (maximum 20).
 export const statKeys=['hp','attack','defense','specialAttack','specialDefense','speed'];
@@ -29,9 +29,8 @@ export function tierMultiplier(v,bands=null,kind='offense'){
  return Array.isArray(bands)&&typeof bands[index]==='number'&&
  Number.isFinite(bands[index])&&bands[index]>0?bands[index]:tier[kind];
 }
-// V5.3: D&D progression is calculated from the saved Pokémon level.
-// A full step only occurs every five Pokémon levels, but damage/HP grow
-// smoothly every individual level, avoiding five-level power plateaus.
+// D&D progression is calculated from the saved Pokémon level (five Pokémon levels per D&D level).
+// Battle damage itself is always calculated using the standard Pokémon formula.
 function boundedLevel(level){
  const number=Number(level);
  return Number.isFinite(number)?Math.min(100,Math.max(1,number)):1;
@@ -90,7 +89,7 @@ export function combatSummary(mon,rules=null){
   dndLevel:level,
   proficiencyBonus:pb,
   levelDamageMultiplier:levelMultiplier,
-  suggestedMaxHp:validStats(s)?maxHpV53(s,mon.level):null,
+  suggestedMaxHp:validStats(s)?maxHpV6(s,mon.level):null,
   physicalOffenseBand:statBand(s.attack),
   specialOffenseBand:statBand(s.specialAttack),
   physicalDefenseBand:statBand(s.defense),
