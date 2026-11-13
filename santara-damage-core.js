@@ -133,7 +133,7 @@ export function makeMove(calc,gen,moveName,customMoves=[],attackAbility='',force
 function damageRolls(value) {
   if(typeof value==='number')return [value];
   if(!Array.isArray(value))return [0];
-  if(typeof value[0]==='number')return value;
+  if(typeof value[0]==='number')return value.length<16?[value.reduce((sum,n)=>sum+n,0)]:value;
   // Multi-hit: correlated roll indices; returned min/max remain accurate.
   return Array.from({length:16},(_,i)=>value.reduce((sum,rolls)=>sum+(rolls[i]??rolls[rolls.length-1]??0),0));
 }
