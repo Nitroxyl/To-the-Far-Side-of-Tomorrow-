@@ -257,8 +257,10 @@ function refreshSide(side) {
   const source=sourceFor(side);
   if(!source)return;
   el(side+'-level').value=source.level||50;
-  el(side+'-ability').value=(source.megaActive&&source.megaForm?.ability)||source.ability||source.abilities?.[0]||'';
+  el(side+'-ability').value=source.ability||source.abilities?.[0]||'';
   el(side+'-item').value=source.heldItem||'';
+  if(gm&&byKey.get(readStr(side+'-choice'))?.kind==='mega'&&!source.heldItem)
+   el(side+'-item').value=requiredStoneFor(source,source.megaForm);
   el(side+'-nature').value=source.nature||'Serious';
   el(side+'-status').value=source.status||'None';
   el(side+'-hp').value=source.currentHp!=null&&source.maxHp?Math.max(1,Math.round(100*source.currentHp/source.maxHp)):100;
@@ -267,15 +269,15 @@ function refreshSide(side) {
     el('damage-exposed').checked=false;
   }
   if(side==='d'){
-    const defAbility=(source.megaActive&&source.megaForm?.ability)||source.ability||source.abilities?.[0]||'';
-    el('damage-chorus').checked=canon(defAbility)==='aurorachorus';
+    el('damage-chorus').checked=false;
     el('damage-exposed').checked=false;
   }
   const megaAllowed=gm||playerProgression.mega;
   const teraAllowed=gm||playerProgression.tera;
   const dynamaxAllowed=gm||playerProgression.dynamax;
   el(side+'-mega').checked=megaAllowed&&!!source.megaActive;
-  el(side+'-mega').disabled=!megaAllowed||!source.megaForm;
+  refreshMegaControls(side);
+  syncMegaAbility(side);
   el(side+'-tera').checked=teraAllowed&&!!source.teraActive;
   el(side+'-tera').disabled=!teraAllowed;
   updateTeraVisibility(side);
@@ -328,7 +330,7 @@ function checkedSide(side){
 }
 function runCalculation() {
   try{
-    const attacker=sourceFor('a'),defender=sourceFor('d');
+    const attacker=calculationSource('a'),defender=calculationSource('d');
     const result=computeDamage(engine(),{
       attacker,defender,moveName:readStr('damage-move'),
       attackerSettings:checkedSide('a'),defenderSettings:checkedSide('d'),
