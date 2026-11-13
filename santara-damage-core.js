@@ -115,15 +115,15 @@ export function makeMove(calc,gen,moveName,customMoves=[],attackAbility='',force
     category:custom.category,basePower:bp,
     accuracy:custom.accuracy??100,
     target:custom.target||'normal',priority:0,
-    flags:{contact:custom.contact?1:0}
+    flags:{contact:custom.contact?1:0, ...Object.fromEntries((custom.traits||[]).map(trait=>[trait,1]))}
   }:undefined;
   const multihit=official?.multihit;
   const maxHits=Array.isArray(multihit)?multihit[1]:typeof multihit==='number'?multihit:1;
   const perfected=id(attackAbility)==='perfectedninjutsu';
-  const count=bound(forcedHits,1,10,perfected?maxHits:1);
+  const count=Number(forcedHits)>0?bound(forcedHits,1,10,1):(perfected?maxHits:undefined);
   const move=new calc.Move(gen,official?.name||name,{
     overrides,ability:perfected?'Technician':attackAbility,
-    hits:Math.max(1,count),isCrit:!!critical
+    hits:count,isCrit:!!critical
   });
   // Skill Link + Technician combination: the calculator gets max hits while
   // treating the attacker's effective ability as Technician, preserving its BP rules.
@@ -137,6 +137,7 @@ function damageRolls(value) {
   // Multi-hit: correlated roll indices; returned min/max remain accurate.
   return Array.from({length:16},(_,i)=>value.reduce((sum,rolls)=>sum+(rolls[i]??rolls[rolls.length-1]??0),0));
 }
+function safeDescription(result){try{return result.fullDesc();}catch{return '';}}
 export function computeDamage(calc,{attacker,defender,moveName,attackerSettings={},defenderSettings={},
   customMoves=[],customAbilities=[],weather='Auto',terrain='',gameType='Singles',
   reflect=false,lightScreen=false,auroraVeil=false,helpingHand=false,critical=false,hits=0,
@@ -158,13 +159,13 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     activeWeather==='Royal Tempest'?'':activeWeather==='Clear'?'':activeWeather;
   const field=new calc.Field({
     weather:standardWeather||undefined,terrain:terrain||undefined,gameType,
-    isSwordOfRuin:[a,d].some(p=>id(p.ability)==='swordofruin'),
+    isSwordOfRuin:id(a.ability)==='swordofruin'&&id(d.ability)!=='swordofruin',
     attackerSide:{isHelpingHand:helpingHand},
     defenderSide:{isReflect:reflect,isLightScreen:lightScreen,
       isAuroraVeil:auroraVeil||id(d.ability)==='aurorachorus'}
   });
   if(chosen.custom?.description?.match(/charge|turn to charge/i))warnings.push('Charge-turn restrictions are not simulated; this result is the damaging turn only.');
-  const match=matchup(gen,chosen.move.type,d.pokemon.types);
+  const match=matchup(gen,chosen.move.type,d.pokemon.teraType?[d.pokemon.teraType]:d.pokemon.types);
   let extra=1;
   if(activeWeather==='Calamitous Sun'){
     if(chosen.move.type==='Water'){extra=0;notes.push('Calamitous Sun blocks Water attacks.');}
@@ -197,7 +198,7 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     defenderStats:d.pokemon.rawStats,ability:a.ability,
     basePower:chosen.basePower,accuracy:chosen.accuracy,
     weather:activeWeather,notes,warnings,
-    fullDescription:extra===1?result.fullDesc():'',
+    fullDescription:extra===1?safeDescription(result):'',
     meta:{type:chosen.move.type,category:chosen.move.category,hits:chosen.move.hits}
   };
 }
