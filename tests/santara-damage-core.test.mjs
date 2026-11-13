@@ -90,3 +90,20 @@ test('calculator never writes to Firebase',()=>{
   const content=readFileSync(resolve(root,'santara-damage-calculator.js'),'utf8');
   assert.ok(!/\\b(?:setDoc|updateDoc|deleteDoc|addDoc|writeBatch)\\b/.test(content));
 });
+
+test('multi-hit damage matches the upstream calculator summed range',()=>{
+  const a=makePokemon(calc,lookup,lucario,{level:50});
+  const d=makePokemon(calc,lookup,pikachu,{level:50});
+  const m=makeMove(calc,lookup,'Bullet Seed',[],'Inner Focus');
+  const direct=calc.calculate(lookup,a.pokemon,d.pokemon,m.move,new calc.Field()).range();
+  const adapted=computeDamage(calc,{attacker:lucario,defender:pikachu,moveName:'Bullet Seed'});
+  assert.deepEqual([adapted.min,adapted.max],direct);
+});
+test('Schradebreaker removes screens before calculating its damage',()=>{
+  const customMoves=[{name:'Schradebreaker',type:'fire',category:'Special',power:130,accuracy:90,
+    description:'Destroys screens before damage',traits:[]}];
+  const clear=computeDamage(calc,{attacker:charizard,defender:scizor,moveName:'Schradebreaker',customMoves});
+  const screened=computeDamage(calc,{attacker:charizard,defender:scizor,moveName:'Schradebreaker',
+    customMoves,lightScreen:true,auroraVeil:true});
+  assert.deepEqual([screened.min,screened.max],[clear.min,clear.max]);
+});
