@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createContext,runInContext} from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {createRequire} from 'node:module';
 
 test('calculator controls, transformation toggles and summary stay accessible',()=>{
  const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
@@ -130,4 +131,18 @@ test('Pokémon search filters by name and generation without scrolling',()=>{
  search.dispatchEvent(new root.Event('input',{bubbles:true}));
  assert.equal(select.options.length,4);
  assert.equal(select.value,'r:charcadet');
+});
+
+test('generation search labels reflect actual Pokémon calculator data',()=>{
+ const require=createRequire(import.meta.url);
+ const realCalc=require('@smogon/calc');
+ const dom=new JSDOM('<!doctype html><html><body><span id="user-chip"></span><p id="calc-feedback"></p><div id="calc-app"></div></body></html>',{url:'https://example.org/damage-calculator.html'});
+ dom.window.SANTARA_POKEMON_EDITION='gm';dom.window.calc=realCalc;
+ const context=createContext({window:dom.window,document:dom.window.document,console,Map,Set,
+  location:dom.window.location,URLSearchParams,setTimeout,clearTimeout});
+ const src=readFileSync(new URL('../santara-damage-calculator.js',import.meta.url),'utf8').replace(/^import[^\n]*\n/gm,'');
+ runInContext(src,context,{timeout:5000});
+ assert.equal(runInContext("generationOf('charizard')",context),1);
+ assert.equal(runInContext("generationOf('ceruledge')",context),9);
+ assert.equal(runInContext("generationOf('tinkaton')",context),9);
 });
