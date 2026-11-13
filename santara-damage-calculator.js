@@ -2,6 +2,7 @@ import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/1
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,getDocs,collection,query,where} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {applyMegaOverlays} from './pokemon-mega-assignments.js';
+import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js';
 import {computeDamage,titleType} from './santara-damage-core.js?v=v6-20261113-1';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
@@ -211,7 +212,7 @@ async function reloadData(){
       Object.fromEntries(a.docs.map(d=>[d.id,d.data()])));
     customMoves=m.docs.map(d=>({slug:d.id,...d.data()}));
     customAbilities=ab.docs.map(d=>({slug:d.id,...d.data()}));
-    const customSpecies=c.docs.map(d=>({slug:d.id,...d.data()}));
+    const customSpecies=playerVisibleCustomSpecies(c.docs.map(d=>({slug:d.id,...d.data()})),records);
     const gen=engine().Generations.get(9);
     choices=makeChoices(gen,records,customSpecies);
     byKey=new Map(choices.map(x=>[x.key,x]));
