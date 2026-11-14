@@ -41,22 +41,17 @@ export function normalizeTrainerSheet(data){
  result.skills=Array.isArray(source.skills)?[...new Set(source.skills.filter(s=>TRAINER_SKILLS.includes(s)))].slice(0,3):[];
  return result;
 }
-export function readTrainerSheet(form){
+export function readTrainerSheet(form,previousSheet){
  const data=new FormData(form);
  const value=(name,max)=>clean(data.get(name),max);
- const attributes={};
- for(const {key} of TRAINER_ATTRIBUTES)attributes[key]=Number(data.get('sheetStat_'+key)??-1);
  const result={
   age:value('sheetAge',8),occupation:value('sheetOccupation',64),
-  attributes,skills:data.getAll('sheetSkill').map(String)
+  attributes:normalizeTrainerSheet(previousSheet).attributes,skills:data.getAll('sheetSkill').map(String)
  };
  for(const f of TRAINER_STORY_FIELDS)result[f.key]=value('sheet_'+f.key,f.max);
  return result;
 }
 export function validateTrainerSheet(sheet){
- const attrs=TRAINER_ATTRIBUTES.map(({key})=>sheet.attributes?.[key]);
- if(attrs.some(n=>![-1,0,1,2].includes(n)))return 'Choose an allowed attribute modifier (or leave it unassigned).';
- if([0,1,2].some((n)=>attrs.filter(v=>v===n).length>({0:1,1:2,2:1}[n])))return 'Distribute modifiers as +2, +1, +1, and +0, with each value used the correct number of times.';
  const skills=sheet.skills||[];
  if(!Array.isArray(skills)||skills.length>3||new Set(skills).size!==skills.length||skills.some(s=>!TRAINER_SKILLS.includes(s)))
   return 'Choose up to three different skill proficiencies.';
@@ -64,21 +59,16 @@ export function validateTrainerSheet(sheet){
 }
 export function sheetComplete(sheet){
  const s=normalizeTrainerSheet(sheet);
- return TRAINER_ATTRIBUTES.map(({key})=>s.attributes[key]).sort().join(',')==='0,1,1,2'&&s.skills.length===3;
+ return s.skills.length===3;
 }
 export function renderTrainerSheetEditor(input,active=false){
  const s=normalizeTrainerSheet(input);
- const options=value=>'<option value="-1"'+(value===-1?' selected':'')+'>Not assigned</option>'+
-  [0,1,2].map(n=>'<option value="'+n+'"'+(n===value?' selected':'')+'>+'+n+'</option>').join('');
- const attr=TRAINER_ATTRIBUTES.map(a=>'<label class="sheet-stat-input"><strong>'+a.short+'</strong><span>'+a.name+'</span><select name="sheetStat_'+a.key+'">'+options(s.attributes[a.key])+'</select><small>'+esc(a.hint)+'</small></label>').join('');
  const skill=TRAINER_SKILLS.map(name=>'<label class="sheet-skill-choice"><input type="checkbox" name="sheetSkill" value="'+esc(name)+'"'+(s.skills.includes(name)?' checked':'')+'><span>'+esc(name)+'</span></label>').join('');
  const narrative=TRAINER_STORY_FIELDS.map(f=>'<label class="field sheet-story-field">'+esc(f.label)+'<textarea name="sheet_'+f.key+'" maxlength="'+f.max+'" rows="2">'+esc(s[f.key])+'</textarea></label>').join('');
  return '<section class="tabpane" data-pane-body="sheet"'+(active?'':' hidden')+'>'+
   '<div class="sheet-intro"><h3>Character sheet · Expedition dossier</h3><p>Your trainer is a person first, not a second Pokémon. These details shape exploration and roleplay. Only approved Trainers can view your published dossier.</p></div>'+
   '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'"></label>'+
   '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'"></label></div>'+
-  '<h3 class="sheet-heading">Trainer attributes</h3><p class="hint">Assign +2, +1, +1 and +0 across the four attributes. These only affect trainer skill checks, not Pokémon damage.</p>'+
-  '<div class="sheet-attribute-editor">'+attr+'</div>'+
   '<h3 class="sheet-heading">Skill proficiencies</h3><p class="hint">Choose three. Each chosen skill adds +2 to relevant checks: d20 + attribute + proficiency (if applicable).</p>'+
   '<div class="sheet-skill-editor">'+skill+'</div>'+
   '<h3 class="sheet-heading">Background & connections</h3><p class="hint">Answer as much or as little as you like. Your self-insert may have lived in Luma Town for years, or have another reason to be here.</p>'+
@@ -88,12 +78,10 @@ export function renderTrainerSheetEditor(input,active=false){
 export function renderTrainerSheetViewer(input){
  const s=normalizeTrainerSheet(input);
  const complete=sheetComplete(s);
- const attributes=TRAINER_ATTRIBUTES.map(a=>'<div class="sheet-stat"><span>'+a.short+'</span><strong>'+(s.attributes[a.key]<0?'—':'+'+s.attributes[a.key])+'</strong><small>'+a.name+'</small></div>').join('');
  const skills=s.skills.map(v=>'<span class="sheet-skill">'+esc(v)+'</span>').join('')||'<span class="sheet-muted">No proficiencies selected yet</span>';
  const info=[['Age',s.age],['Occupation',s.occupation],...TRAINER_STORY_FIELDS.map(f=>[f.label,s[f.key]])].filter(([,v])=>v);
  return '<section class="sheet-viewer" aria-label="Trainer character sheet">'+
-  '<div class="sheet-view-header"><div><span class="sheet-overline">PERSONAL EXPEDITION RECORD</span><h2>Trainer Dossier</h2></div><span class="sheet-status">'+(complete?'Attributes & skills assigned':'Character sheet in progress')+'</span></div>'+
-  '<div class="sheet-attributes">'+attributes+'</div>'+
+  '<div class="sheet-view-header"><div><span class="sheet-overline">PERSONAL EXPEDITION RECORD</span><h2>Trainer Dossier</h2></div><span class="sheet-status">'+(complete?'Skills selected':'Character sheet in progress')+'</span></div>'+
   '<div class="sheet-view-skills"><strong>Skill proficiencies</strong><div class="sheet-skill-list">'+skills+'</div></div>'+
   (info.length?'<div class="sheet-view-story">'+info.map(([label,value])=>'<div class="sheet-story-item"><strong>'+esc(label)+'</strong><p>'+esc(value)+'</p></div>').join('')+'</div>':'<p class="sheet-muted">No personal history published yet. Use the Character Sheet tab to introduce your trainer.</p>')+
   '</section>';
