@@ -4,7 +4,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebas
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
-import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=compact-trainer-background-20261110-2';
+import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-skills-only-20261115-1';
 
 const ROOT=document.getElementById('profile-root');
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
@@ -174,7 +174,7 @@ function collect(form,key){
  if(!key)return;
  const data=new FormData(form);
  if(key.startsWith('sheet')){
-  model.characterSheet=readTrainerSheet(form);
+  model.characterSheet=readTrainerSheet(form,model.characterSheet);
  } else if(key==='theme'){
   const t=String(data.get('theme')||'ocean');
   model.theme=Object.hasOwn(themes,t)?t:'ocean';
@@ -224,7 +224,7 @@ async function saveCard(e){
  e.preventDefault();
  if(!owner||!canEnter||working)return;
  const form=e.target;if(!form.reportValidity())return;
- const sheetDraft=readTrainerSheet(form),sheetError=validateTrainerSheet(sheetDraft);
+ const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft);
  if(sheetError){switchPane('sheet');feedback(sheetError);return}
  model.characterSheet=normalizeTrainerSheet(sheetDraft);
  for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','badgeCount','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
