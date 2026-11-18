@@ -277,9 +277,9 @@ async function saveCard(e){
  feedback('Saving Trainer Card to Firestore…');
  try{
   await setDoc(doc(store,'santara_trainer_cards',user.uid),entry);
-  dirty=false;feedback('Trainer Card saved! The party can now view your updated profile.');
+  dirty=false;feedback(CHARACTER_PAGE?'Character Sheet saved! Your progress and talents are on record.':'Trainer Card saved! The party can now view your updated profile.');
  }catch(err){feedback('Save failed: '+errorMessage(err))}
- finally{working=false;if(btn){btn.disabled=false;btn.textContent='Save Trainer Card'}}
+ finally{working=false;if(btn){btn.disabled=false;btn.textContent=CHARACTER_PAGE?'Save Character Sheet':'Save Trainer Card'}}
 }
 function collectWithoutRedraw(form,key){
  const raw=new FormData(form),v=raw.get(key);if(v==null)return;
