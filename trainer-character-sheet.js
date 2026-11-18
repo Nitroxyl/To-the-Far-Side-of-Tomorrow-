@@ -130,8 +130,9 @@ export function sheetComplete(input){
  return STARTING_ARRAY.every(n=>Object.values(s.abilityScores).includes(n))&&s.skills.length>=3;
 }
 const abilitySummary=(s,a)=>s.abilityScores[a.key]===0?'—':String(s.abilityScores[a.key]+(s.abilityBoost===a.key?1:0));
-export function renderTrainerSheetEditor(input,active=true,progress){
+export function renderTrainerSheetEditor(input,active=true,progress,selectedTab='abilities'){
  const s=normalizeTrainerSheet(input),p=trainingProgress(progress),skillMax=skillLimit(p),talentMax=talentLimit(p);
+ const tab=['abilities','skills','talents','background'].includes(selectedTab)?selectedTab:'abilities';
  const abilities=TRAINER_ATTRIBUTES.map(a=>'<label class="sheet-ability-input"><strong>'+a.short+'</strong><span>'+a.name+'</span><select name="sheetAbility_'+a.key+'">'+
   '<option value="0"'+(s.abilityScores[a.key]===0?' selected':'')+'>Not assigned</option>'+
   STARTING_ARRAY.map(n=>'<option value="'+n+'"'+(s.abilityScores[a.key]===n?' selected':'')+'>'+n+' ('+(statMod(n)>=0?'+':'')+statMod(n)+')</option>').join('')+
@@ -139,27 +140,38 @@ export function renderTrainerSheetEditor(input,active=true,progress){
  const boost='<label class="field full">Gym 5 ability improvement (+1)<select name="sheetAbilityBoost"'+(p.gymCount<5?' disabled':'')+'><option value="">Not selected</option>'+
   TRAINER_ATTRIBUTES.map(a=>'<option value="'+a.key+'"'+(s.abilityBoost===a.key?' selected':'')+'>'+a.short+' — '+a.name+'</option>').join('')+'</select></label>';
  const skills=TRAINER_SKILLS.map(x=>'<label class="sheet-skill-choice"><input type="checkbox" name="sheetSkill" value="'+esc(x.name)+'"'+(s.skills.includes(x.name)?' checked':'')+'><span>'+esc(x.name)+' <small>('+x.ability.toUpperCase()+')</small></span></label>').join('');
- const talents=['Fieldcraft','Pokémoncraft','Command'].map(category=>{
+ const talents=['Fieldcraft','Pokémoncraft','Command'].map((category,index)=>{
+  const chosen=TRAINER_TALENTS.filter(t=>t.category===category&&s.talents.includes(t.id)).length;
   const entries=TRAINER_TALENTS.filter(t=>t.category===category).map(t=>{
    const locked=(category==='Command'&&p.gymCount<4)||(t.minGyms&&p.gymCount<t.minGyms);
    return '<label class="sheet-talent-choice'+(locked?' locked':'')+'"><input type="checkbox" name="sheetTalent" value="'+t.id+'"'+(s.talents.includes(t.id)?' checked':'')+(locked?' disabled':'')+'><span><strong>'+esc(t.name)+'</strong>'+(locked?'<em>Locked until Gym '+(t.minGyms||4)+'</em>':'')+'<small>'+esc(t.description)+'</small></span></label>';
   }).join('');
-  return '<div class="sheet-talent-group"><h4>'+category+'</h4>'+entries+'</div>';
+  return '<details class="sheet-talent-group"'+(index===0?' open':'')+'><summary><span>'+esc(category)+'</span><span class="sheet-talent-count">'+chosen+' selected</span></summary><div class="sheet-talent-options">'+entries+'</div></details>';
  }).join('');
- const narrative=TRAINER_STORY_FIELDS.map(field=>'<label class="field sheet-story-field">'+esc(field.label)+'<textarea name="sheet_'+field.key+'" maxlength="'+field.max+'" rows="2">'+esc(s[field.key])+'</textarea></label>').join('');
+ const storyField=field=>'<label class="field sheet-story-field">'+esc(field.label)+'<textarea name="sheet_'+field.key+'" maxlength="'+field.max+'" rows="2" placeholder="'+esc(field.prompt)+'">'+esc(s[field.key])+'</textarea></label>';
+ const origins=TRAINER_STORY_FIELDS.slice(0,5).map(storyField).join('');
+ const connections=TRAINER_STORY_FIELDS.slice(5).map(storyField).join('');
+ const tabs=[['abilities','Abilities'],['skills','Skills'],['talents','Talents'],['background','Backstory']];
+ const navigation='<div class="sheet-editor-tabs" role="tablist" aria-label="Character sheet editor sections">'+
+  tabs.map(([id,label])=>'<button type="button" role="tab" data-sheet-tab="'+id+'" aria-selected="'+String(id===tab)+'" class="'+(id===tab?'active':'')+'">'+label+'</button>').join('')+'</div>';
+ const pane=(id,html)=>'<div class="sheet-editor-pane" data-sheet-pane="'+id+'"'+(id===tab?'':' hidden')+'>'+html+'</div>';
  return '<section class="tabpane" data-page-body="character"'+(active?'':' hidden')+'>'+
-  '<div class="sheet-intro"><h3>Character Sheet · Expedition dossier</h3><p>Six ordinary human ability scores, trained skills, and GM-unlocked talents. These affect Trainer checks, not Pokémon damage calculations.</p></div>'+
-  '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'"></label>'+
-  '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'"></label></div>'+
-  '<h3 class="sheet-heading">Ability scores</h3><p class="hint">Assign 14, 13, 12, 11, 10, 9 exactly once. Human scores remain capped at 16. Modifiers use the ordinary D&D formula.</p>'+
-  '<div class="sheet-ability-editor">'+abilities+'</div><div class="form-group" style="margin-top:12px">'+boost+'</div>'+
-  '<h3 class="sheet-heading">Skill proficiencies · '+s.skills.length+'/'+skillMax+'</h3><p class="hint">Checks: d20 + ability modifier + '+proficiencyBonus(p)+' if trained. Gain extra trained skills at Gym 2 and Gym 6.</p>'+
-  '<div class="sheet-skill-editor">'+skills+'</div>'+
-  '<h3 class="sheet-heading">Trainer Talents · '+s.talents.length+'/'+talentMax+'</h3>'+
-  '<p class="hint">New slots: Gym 1, Gym 4, Gym 7, and Championship. Your first talent must be Fieldcraft or Pokémoncraft; only one Command talent before Championship. No Pokémon combat dice or damage multipliers are changed.</p>'+
-  '<div class="sheet-talent-editor">'+talents+'</div>'+
-  '<h3 class="sheet-heading">Background & connections</h3><p class="hint">Write as much or as little as you like about your character and their place in Santara.</p>'+
-  '<div class="form-group sheet-story-editor">'+narrative+'</div></section>';
+  '<div class="sheet-intro"><h3>Character Sheet · Expedition dossier</h3><p>Edit one section at a time. Your choices stay in place when switching sections, and everything saves together.</p></div>'+
+  navigation+
+  pane('abilities','<div class="sheet-editor-section-head"><h3>Ability scores</h3><p class="hint">Assign 14, 13, 12, 11, 10, 9 exactly once. Human scores stay capped at 16.</p></div>'+
+   '<div class="form-group"><label class="field">Character age (optional)<input name="sheetAge" maxlength="8" value="'+esc(s.age)+'"></label>'+
+   '<label class="field">Occupation / background<input name="sheetOccupation" maxlength="64" value="'+esc(s.occupation)+'"></label></div>'+
+   '<div class="sheet-ability-editor">'+abilities+'</div><div class="form-group sheet-ability-boost">'+boost+'</div>')+
+  pane('skills','<div class="sheet-editor-section-head"><h3>Skill proficiencies <span class="sheet-count" data-sheet-count="skills">'+s.skills.length+' / '+skillMax+'</span></h3>'+
+   '<p class="hint">Skill checks use d20 + ability modifier + '+proficiencyBonus(p)+' when trained. New proficiencies unlock at Gyms 2 and 6.</p></div>'+
+   '<div class="sheet-skill-editor">'+skills+'</div>')+
+  pane('talents','<div class="sheet-editor-section-head"><h3>Trainer Talents <span class="sheet-count" data-sheet-count="talents">'+s.talents.length+' / '+talentMax+'</span></h3>'+
+   '<p class="hint">Talents unlock at Gyms 1, 4 and 7, then Championship. Pick up to one Command talent before Championship. Expand a category to browse its five options.</p></div>'+
+   '<div class="sheet-talent-editor">'+talents+'</div>')+
+  pane('background','<div class="sheet-editor-section-head"><h3>Backstory & connections</h3><p class="hint">These are optional. Fill them out at your own pace.</p></div>'+
+   '<details class="sheet-story-group" open><summary>Personal background</summary><div class="form-group sheet-story-editor">'+origins+'</div></details>'+
+   '<details class="sheet-story-group"><summary>People & connections</summary><div class="form-group sheet-story-editor">'+connections+'</div></details>')+
+  '</section>';
 }
 export function renderTrainerSheetViewer(input,progress){
  const s=normalizeTrainerSheet(input),p=trainingProgress(progress);
