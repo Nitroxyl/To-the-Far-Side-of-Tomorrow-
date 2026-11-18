@@ -96,6 +96,7 @@ export function normalizeTrainerSheet(data){
 }
 export function readTrainerSheet(form,previousSheet){
  const prev=normalizeTrainerSheet(previousSheet),f=new FormData(form);
+ if(!f.has('sheetAge'))return prev; // Card-only page: preserve the saved character sheet.
  const result={...prev,age:clean(f.get('sheetAge'),8),occupation:clean(f.get('sheetOccupation'),64)};
  for(const field of TRAINER_STORY_FIELDS)result[field.key]=clean(f.get('sheet_'+field.key),field.max);
  for(const {key} of TRAINER_ATTRIBUTES)result.abilityScores[key]=Number(f.get('sheetAbility_'+key)??0);
