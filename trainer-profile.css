@@ -43,3 +43,35 @@ a{color:inherit;text-decoration:none}button,input,textarea,select{font:inherit}b
  .sheet-view-story{grid-template-columns:1fr}
  .sheet-story-editor{grid-template-columns:1fr}
 }
+
+/* Separate trainer passport and character-sheet pages */
+.passport-pages{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;padding:6px;background:#0d1b29;border:1px solid #314b5d;border-radius:14px}
+.passport-pages a{display:block;flex:1;min-width:145px;text-align:center;padding:12px 15px;font-size:14px;font-weight:800;border-radius:10px;color:#b8cfda}
+.passport-pages a.active{background:#26575c;color:#edfff7;box-shadow:inset 0 0 0 1px #6fbba8}
+.passport-pages a:hover:not(.active){background:#1b3547}
+.gm-progress-value{padding:10px 12px;background:#182f40;border-radius:9px;border:1px solid #39576a;font-size:15px;color:#ddfff5}
+.sheet-ability-editor{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:13px}
+.sheet-ability-input{display:grid;grid-template-columns:44px 1fr;gap:5px 8px;align-items:center;border:1px solid #39576a;background:#152d3b;border-radius:11px;padding:12px;color:#e6f3f5}
+.sheet-ability-input strong{color:#9ee0ce;font-size:12px}
+.sheet-ability-input span{font-size:12px;font-weight:750}
+.sheet-ability-input select{grid-column:1/-1;width:100%;min-width:0;background:#0d2433;border:1px solid #466579;border-radius:8px;padding:9px;color:#f3f9fb}
+.sheet-ability-input small{grid-column:1/-1;color:#a8c0cb;font-size:10px;line-height:1.4}
+.sheet-talent-editor{display:grid;gap:16px;margin-top:12px}
+.sheet-talent-group h4{font-size:13px;margin:0 0 8px;color:#9be2d4}
+.sheet-talent-group{display:grid;gap:8px}
+.sheet-talent-choice{display:flex;gap:11px;align-items:start;padding:12px;border:1px solid #34566b;background:#132a38;border-radius:11px;cursor:pointer}
+.sheet-talent-choice input{flex-shrink:0;width:17px;height:17px;accent-color:#61c9b7;margin-top:2px}
+.sheet-talent-choice span{display:grid;gap:3px}
+.sheet-talent-choice strong{font-size:13px}
+.sheet-talent-choice small{font-size:11px;color:#b4cbd2;line-height:1.48}
+.sheet-talent-choice em{font-style:normal;color:#e3c389;font-size:10px}
+.sheet-talent-choice.locked{opacity:.55;cursor:not-allowed}
+.sheet-progress-line{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 16px}
+.sheet-progress-line span{padding:7px 10px;border:1px solid #426575;border-radius:16px;font-size:11px;color:#c9e7e5}
+.sheet-selected-talents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.sheet-selected-talent{padding:11px 12px;border:1px solid #3d6074;background:#132e3b;border-radius:11px}
+.sheet-selected-talent strong{display:block;color:#e7fff6;font-size:13px}
+.sheet-selected-talent small{font-size:10px;color:#a7d2cf}
+.sheet-selected-talent p{font-size:11px;color:#bad2d9;line-height:1.5;margin:6px 0 0}
+@media(max-width:850px){.sheet-attributes{grid-template-columns:repeat(3,minmax(0,1fr))}.sheet-ability-editor{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.sheet-attributes{grid-template-columns:repeat(3,minmax(0,1fr))}.sheet-selected-talents{grid-template-columns:1fr}.sheet-ability-editor{grid-template-columns:1fr}.sheet-stat strong{font-size:23px}}
