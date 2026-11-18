@@ -299,8 +299,7 @@ function subscribe(){
   if(dirty)updatePreview();else render();
  },e=>console.warn('Trainer milestones unavailable:',e.message));
  stopCard=onSnapshot(doc(store,'santara_trainer_cards',profileUid),snapshot=>{
-  if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,characterSheet:normalizeTrainerSheet(original?.characterSheet),team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']}}
-  render();
+  if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,characterSheet:normalizeTrainerSheet(original?.characterSheet),team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']};render();}
  },e=>gate('Could not load Trainer Card',errorMessage(e),'<a class="linkbtn" href="./index.html?tab=trainer">Return to roster</a>'));
 }
 function enter(){
@@ -343,6 +342,7 @@ function authHandler(u){
  const refresh=()=>{
   if(gmRole||approvedAccess){enter();return}
   if(stopCard){stopCard();stopCard=null}
+  stopProgress?.();stopProgress=null;trainerProgress=null;
   stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;
   canEnter=false;
   gate('Waiting for account approval','Your existing account needs Trainer approval or an authorized GM role. No new account is required.',
