@@ -102,7 +102,7 @@ function passportNavigation(){
   '<a class="'+(CHARACTER_PAGE?'active':'')+'" href="./trainer-character.html'+query+'">Character Sheet</a></nav>';
 }
 function htmlCharacterEditor(){
- return passportNavigation()+'<div class="studio"><section class="preview-wrap">'+
+ return passportNavigation()+'<div class="studio sheet-studio"><section class="preview-wrap">'+
   '<div id="character-sheet-preview">'+renderTrainerSheetViewer(model.characterSheet,trainerProgress)+'</div>'+
   '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
   '<section class="panel"><div class="editor-header"><h2>Edit Character Sheet</h2><span class="eyebrow">TRAINER DEVELOPMENT</span></div>'+
