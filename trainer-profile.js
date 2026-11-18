@@ -4,7 +4,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebas
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
-import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-dnd-talents-20261118-2';
+import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-compact-editor-20261118-1';
 
 const ROOT=document.getElementById('profile-root');
 const CHARACTER_PAGE=window.SANTARA_CHARACTER_PAGE===true;
@@ -23,7 +23,7 @@ const custom=(p,k)=>correctHex(p[k])?p[k]:themes[p.theme]?.[k==='customPrimary'?
 const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)===String(selected)?'selected':'')+'>'+esc(s)+'</option>').join('');
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
-let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopProgress=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity',trainerProgress=null,progressReady=false,cardReady=false;
+let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopProgress=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity',currentSheetTab='abilities',trainerProgress=null,progressReady=false,cardReady=false;
 let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
@@ -106,7 +106,7 @@ function htmlCharacterEditor(){
   '<div id="character-sheet-preview">'+renderTrainerSheetViewer(model.characterSheet,trainerProgress)+'</div>'+
   '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
   '<section class="panel"><div class="editor-header"><h2>Edit Character Sheet</h2><span class="eyebrow">TRAINER DEVELOPMENT</span></div>'+
-  '<form id="passport-form">'+renderTrainerSheetEditor(model.characterSheet,true,trainerProgress)+
+  '<form id="passport-form">'+renderTrainerSheetEditor(model.characterSheet,true,trainerProgress,currentSheetTab)+
   '<div class="savebar"><button class="save" type="submit">Save Character Sheet</button><span id="form-status" class="form-msg" role="status">'+(dirty?'Unsaved changes':'Saved data loads automatically')+'</span></div></form></section></div>';
 }
 function htmlEditor(){
@@ -175,6 +175,7 @@ function render(){
       }catch(err){feedback('Image error: '+err.message)}
     } else {collect(form,e.target.name)}
   });
+  for(const btn of ROOT.querySelectorAll('[data-sheet-tab]'))btn.addEventListener('click',()=>switchSheetTab(btn.dataset.sheetTab));
   form.addEventListener('submit',saveCard);
  }
 }
@@ -185,6 +186,31 @@ function switchPane(next){
  for(const btn of ROOT.querySelectorAll('[data-pane]')){
   btn.classList.toggle('active',btn.dataset.pane===next);
   btn.setAttribute('aria-selected',String(btn.dataset.pane===next));
+ }
+}
+function switchSheetTab(next){
+ if(!CHARACTER_PAGE||!['abilities','skills','talents','background'].includes(next))return;
+ currentSheetTab=next;
+ for(const pane of ROOT.querySelectorAll('[data-sheet-pane]'))pane.hidden=pane.dataset.sheetPane!==next;
+ for(const button of ROOT.querySelectorAll('[data-sheet-tab]')){
+  const selected=button.dataset.sheetTab===next;
+  button.classList.toggle('active',selected);
+  button.setAttribute('aria-selected',String(selected));
+ }
+}
+function updateSheetCounters(form){
+ if(!CHARACTER_PAGE)return;
+ const skills=form.querySelectorAll('[name="sheetSkill"]:checked').length;
+ const talents=form.querySelectorAll('[name="sheetTalent"]:checked').length;
+ const skillCount=ROOT.querySelector('[data-sheet-count="skills"]');
+ const talentCount=ROOT.querySelector('[data-sheet-count="talents"]');
+ const gym=trainerProgress?.gymCount||0;
+ if(skillCount)skillCount.textContent=skills+' / '+(gym>=6?5:gym>=2?4:3);
+ if(talentCount)talentCount.textContent=talents+' / '+((gym>=7?3:gym>=4?2:gym>=1?1:0)+(trainerProgress?.champion===true?1:0));
+ for(const group of ROOT.querySelectorAll('.sheet-talent-group')){
+  const count=group.querySelectorAll('[name="sheetTalent"]:checked').length;
+  const counter=group.querySelector('.sheet-talent-count');
+  if(counter)counter.textContent=count+' selected';
  }
 }
 function collect(form,key){
@@ -209,7 +235,7 @@ function collect(form,key){
   if(primary)primary.value=model.customPrimary;
   if(secondary)secondary.value=model.customSecondary;
  }
- dirty=true;updatePreview();
+ dirty=true;updatePreview();updateSheetCounters(form);
  const line=ROOT.querySelector('#form-status');if(line)line.textContent='Unsaved changes';
 }
 function updatePreview(){const node=document.getElementById('passport-preview');if(node)node.innerHTML=paintCard(model);const sheet=document.getElementById('character-sheet-preview');if(sheet)sheet.innerHTML=renderTrainerSheetViewer(model.characterSheet,trainerProgress)}
@@ -243,7 +269,13 @@ async function saveCard(e){
  if(!progressReady||!cardReady){feedback('Waiting for the saved card and GM milestone record. If this persists, the GM must publish the updated Firestore rules.');return;}
  const form=e.target;if(!form.reportValidity())return;
  const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft,trainerProgress);
- if(sheetError){feedback(sheetError);return}
+ if(sheetError){
+  if(CHARACTER_PAGE){
+   const problem=sheetError.toLowerCase();
+   switchSheetTab(problem.includes('skill')?'skills':/talent|command|legendary/.test(problem)?'talents':'abilities');
+  }
+  feedback(sheetError);return
+ }
  model.characterSheet=normalizeTrainerSheet(sheetDraft);
  for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
   // Field may be in a hidden editor pane; FormData still includes it.
