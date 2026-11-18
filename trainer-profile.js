@@ -4,9 +4,10 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebas
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
-import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-skills-only-20261115-1';
+import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-dnd-talents-20261118-2';
 
 const ROOT=document.getElementById('profile-root');
+const CHARACTER_PAGE=window.SANTARA_CHARACTER_PAGE===true;
 const GM_UID='ctBLgrVgkLOzUJYTyYgU9IwejYx1';
 const config=window.SANTARA_FIREBASE_CONFIG;
 const themes={crimson:['#b8395a','#35142f'],ocean:['#168db9','#112c55'],emerald:['#118e78','#173a34'],violet:['#9163e6','#332263'],amber:['#d68932','#624028'],midnight:['#3d526b','#111b2e'],rose:['#dd7195','#552643'],frost:['#5f9ab7','#26435c']};
@@ -22,7 +23,7 @@ const custom=(p,k)=>correctHex(p[k])?p[k]:themes[p.theme]?.[k==='customPrimary'?
 const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)===String(selected)?'selected':'')+'>'+esc(s)+'</option>').join('');
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
-let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity';
+let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopProgress=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity',trainerProgress=null;
 let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
@@ -75,7 +76,7 @@ function paintCard(p){
  const pattern=patterns.includes(p.pattern)?p.pattern:'plain';
  const avatarData=safeImage(p.portraitData,150000);
  const bannerData=safeImage(p.bannerData,260000);
- const badge=Math.max(0,Math.min(8,Number(p.badgeCount)||0));
+ const badge=Math.max(0,Math.min(8,Number(trainerProgress?.gymCount??p.badgeCount)||0));
  const team=partySlots.slice(0,6);
  while(team.length<6)team.push(null);
  return '<article class="passport pattern-'+pattern+'" style="--c1:'+primary+';--c2:'+secondary+';--c3:#c1ffe9">'+
@@ -93,17 +94,33 @@ function paintCard(p){
   '<div class="id-bottom"><span>TRAINER PASSPORT / FIELD RESEARCH</span><span>✦ AUTHORIZED</span></div>'+
   '</div></article>';
 }
+
+function passportNavigation(){
+ const query=profileUid&&user&&profileUid!==user.uid?'?uid='+encodeURIComponent(profileUid):'';
+ return '<nav class="passport-pages" aria-label="Trainer pages">'+
+  '<a class="'+(!CHARACTER_PAGE?'active':'')+'" href="./trainer.html'+query+'">Trainer Card</a>'+
+  '<a class="'+(CHARACTER_PAGE?'active':'')+'" href="./trainer-character.html'+query+'">Character Sheet</a></nav>';
+}
+function htmlCharacterEditor(){
+ return passportNavigation()+'<div class="studio"><section class="preview-wrap">'+
+  '<div id="character-sheet-preview">'+renderTrainerSheetViewer(model.characterSheet,trainerProgress)+'</div>'+
+  '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
+  '<section class="panel"><div class="editor-header"><h2>Edit Character Sheet</h2><span class="eyebrow">TRAINER DEVELOPMENT</span></div>'+
+  '<form id="passport-form">'+renderTrainerSheetEditor(model.characterSheet,true,trainerProgress)+
+  '<div class="savebar"><button class="save" type="submit">Save Character Sheet</button><span id="form-status" class="form-msg" role="status">'+(dirty?'Unsaved changes':'Saved data loads automatically')+'</span></div></form></section></div>';
+}
 function htmlEditor(){
+ if(CHARACTER_PAGE)return htmlCharacterEditor();
  const p=model;
  const val=k=>esc(p[k]??'');
  const team=Array.isArray(p.team)?p.team.slice(0,6):[];
  while(team.length<6)team.push('');
- return '<div class="studio"><section class="preview-wrap"><div class="preview-label"><h2>Live card preview</h2><span>Updates as you customize</span></div><div id="passport-preview">'+paintCard(p)+'</div>'+
+ return passportNavigation()+'<div class="studio"><section class="preview-wrap"><div class="preview-label"><h2>Live card preview</h2><span>Updates as you customize</span></div><div id="passport-preview">'+paintCard(p)+'</div>'+
  '<p class="preview-helper">Your six party slots now sync from My Pokémon automatically, including Pokémon assigned or moved by your GM. Your colours, portrait and motto are saved separately.</p>'+
- '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a><div id="character-sheet-preview">'+renderTrainerSheetViewer(p.characterSheet)+'</div></section>'+
+ '<a class="linkbtn" href="./index.html?tab=trainer">← Browse Trainer Roster</a></section>'+
  '<section class="panel"><div class="editor-header"><h2>Customize your ID</h2><span class="eyebrow">PERSONAL EDITION</span></div>'+
  '<div class="section-tabs" role="tablist" aria-label="Trainer card editor sections">'+
- [['identity','Identity'],['sheet','Character sheet'],['design','Design & photos'],['team','Team']].map(([id,t])=>'<button type="button" data-pane="'+id+'" class="'+(currentPane===id?'active':'')+'" aria-selected="'+(currentPane===id?'true':'false')+'">'+t+'</button>').join('')+'</div>'+
+ [['identity','Identity'],['design','Design & photos'],['team','Team']].map(([id,t])=>'<button type="button" data-pane="'+id+'" class="'+(currentPane===id?'active':'')+'" aria-selected="'+(currentPane===id?'true':'false')+'">'+t+'</button>').join('')+'</div>'+
  '<form id="passport-form">'+
  '<section class="tabpane" data-pane-body="identity" '+(currentPane==='identity'?'':'hidden')+'><div class="form-group">'+
  '<label class="field">Trainer name<input name="trainerName" maxlength="32" required value="'+val('trainerName')+'"></label>'+
@@ -112,10 +129,10 @@ function htmlEditor(){
  '<label class="field">Hometown<input name="hometown" maxlength="48" value="'+val('hometown')+'"></label>'+
  '<label class="field">Partner Pokémon<input name="partnerPokemon" maxlength="48" value="'+val('partnerPokemon')+'"></label>'+
  '<label class="field">Favorite type<select name="favoriteType">'+option(types,p.favoriteType)+'</select></label>'+
- '<label class="field">Gym badges<select name="badgeCount">'+option(['0','1','2','3','4','5','6','7','8'],String(p.badgeCount??0))+'</select></label>'+
+ '<div class="field"><span>Gym badges</span><strong class="gm-progress-value">'+Math.max(0,Math.min(8,Number(trainerProgress?.gymCount??p.badgeCount)||0))+' / 8</strong><small>Set by the GM in Player Unlocks.</small></div>'+
  '<label class="field">Emblem<select name="avatar">'+option(emblems,p.avatar)+'</select></label>'+
  '<label class="field full">Trainer motto<textarea name="quote" maxlength="180" rows="3">'+val('quote')+'</textarea></label>'+
- '</div></section>'+renderTrainerSheetEditor(p.characterSheet,currentPane==='sheet')+
+ '</div></section>'+
  '<section class="tabpane" data-pane-body="design" '+(currentPane==='design'?'':'hidden')+'><div class="form-group">'+
  '<label class="field">Theme preset<select name="theme">'+option(Object.keys(themes),p.theme)+'</select></label>'+
  '<label class="field">Background texture<select name="pattern">'+option(patterns,p.pattern)+'</select></label>'+
@@ -136,7 +153,7 @@ function htmlEditor(){
 function render(){
  if(!canEnter||!profileUid){return}
  if(!owner){
-  ROOT.innerHTML='<section class="read-only"><div class="preview-label"><h2>Trainer record</h2><span>Shared with approved Trainers</span></div>'+paintCard(model)+renderTrainerSheetViewer(model.characterSheet)+
+  ROOT.innerHTML=passportNavigation()+'<section class="read-only"><div class="preview-label"><h2>Trainer record</h2><span>Shared with approved Trainers</span></div>'+(CHARACTER_PAGE?renderTrainerSheetViewer(model.characterSheet,trainerProgress):paintCard(model))+
   '<a class="linkbtn" href="./index.html?tab=trainer">← Return to Trainer Roster</a></section>';
  }else{
   ROOT.innerHTML=htmlEditor();
@@ -162,7 +179,7 @@ function render(){
  }
 }
 function switchPane(next){
- if(!['identity','sheet','design','team'].includes(next))return;
+ if(!['identity','design','team'].includes(next))return;
  currentPane=next;
  for(const node of ROOT.querySelectorAll('[data-pane-body]'))node.hidden=node.dataset.paneBody!==next;
  for(const btn of ROOT.querySelectorAll('[data-pane]')){
@@ -195,7 +212,7 @@ function collect(form,key){
  dirty=true;updatePreview();
  const line=ROOT.querySelector('#form-status');if(line)line.textContent='Unsaved changes';
 }
-function updatePreview(){const node=document.getElementById('passport-preview');if(node)node.innerHTML=paintCard(model);const sheet=document.getElementById('character-sheet-preview');if(sheet)sheet.innerHTML=renderTrainerSheetViewer(model.characterSheet)}
+function updatePreview(){const node=document.getElementById('passport-preview');if(node)node.innerHTML=paintCard(model);const sheet=document.getElementById('character-sheet-preview');if(sheet)sheet.innerHTML=renderTrainerSheetViewer(model.characterSheet,trainerProgress)}
 function feedback(message){const line=ROOT.querySelector('#form-status');if(line)line.textContent=message}
 async function downsize(file,kind){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Please select a JPG, PNG or WebP image.');
@@ -224,10 +241,10 @@ async function saveCard(e){
  e.preventDefault();
  if(!owner||!canEnter||working)return;
  const form=e.target;if(!form.reportValidity())return;
- const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft);
- if(sheetError){switchPane('sheet');feedback(sheetError);return}
+ const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft,trainerProgress);
+ if(sheetError){feedback(sheetError);return}
  model.characterSheet=normalizeTrainerSheet(sheetDraft);
- for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','badgeCount','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
+ for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
   // Field may be in a hidden editor pane; FormData still includes it.
   if(!key.startsWith('team'))collectWithoutRedraw(form,key);
  }
@@ -244,7 +261,7 @@ async function saveCard(e){
   favoriteType:types.includes(model.favoriteType)?model.favoriteType:'Normal',
   theme:Object.hasOwn(themes,model.theme)?model.theme:'ocean',
   avatar:emblems.includes(model.avatar)?model.avatar:'🎒',
-  badgeCount:Math.max(0,Math.min(8,Math.floor(Number(model.badgeCount)||0))),
+  badgeCount:Math.max(0,Math.min(8,Math.floor(Number(trainerProgress?.gymCount??original?.badgeCount??0)||0))),
   quote:String(model.quote||'').slice(0,180),
   team:model.team,
   pattern:patterns.includes(model.pattern)?model.pattern:'plain',
@@ -272,10 +289,15 @@ function collectWithoutRedraw(form,key){
 }
 function subscribe(){
  if(stopCard)stopCard();
+ stopProgress?.();stopProgress=null;trainerProgress=null;
  subscribeParty();
  owner=profileUid===user.uid;
  dirty=false;
  gate(owner?'Preparing your Trainer Card':'Loading Trainer record','Fetching the saved profile.');
+ stopProgress=onSnapshot(doc(store,'santara_trainer_progress',profileUid),snapshot=>{
+  trainerProgress=snapshot.exists()?snapshot.data():null;
+  if(dirty)updatePreview();else render();
+ },e=>console.warn('Trainer milestones unavailable:',e.message));
  stopCard=onSnapshot(doc(store,'santara_trainer_cards',profileUid),snapshot=>{
   if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,characterSheet:normalizeTrainerSheet(original?.characterSheet),team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']}}
   render();
@@ -290,6 +312,7 @@ function authHandler(u){
  if(stopRole){stopRole();stopRole=null}
  stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];ownPokemonLoaded=false;partyReady=false;
  if(stopCard){stopCard();stopCard=null}
+ stopProgress?.();stopProgress=null;trainerProgress=null;
  if(stopAccess){stopAccess();stopAccess=null}
  canEnter=false;user=u;dirty=false;original=null;
  if(!user){
