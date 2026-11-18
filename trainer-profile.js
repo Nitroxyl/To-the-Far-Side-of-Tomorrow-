@@ -23,7 +23,7 @@ const custom=(p,k)=>correctHex(p[k])?p[k]:themes[p.theme]?.[k==='customPrimary'?
 const option=(arr,selected)=>arr.map(s=>'<option value="'+esc(s)+'" '+(String(s)===String(selected)?'selected':'')+'>'+esc(s)+'</option>').join('');
 const targetFromUrl=new URLSearchParams(location.search).get('uid');
 const requestedUid=targetFromUrl && /^[A-Za-z0-9]{10,128}$/.test(targetFromUrl)?targetFromUrl:null;
-let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopProgress=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity',trainerProgress=null;
+let auth,store,user=null,profileUid=null,owner=false,canEnter=false,stopAccess=null,stopRole=null,stopCard=null,stopProgress=null,stopParty=null,stopOwnPokemon=null,dirty=false,currentPane='identity',trainerProgress=null,progressReady=false,cardReady=false;
 let partySlots=Array(6).fill(null),partyReady=false,ownPokemon=[],ownPokemonLoaded=false;
 let model={...defaults},original=null,working=false;
 
@@ -240,6 +240,7 @@ async function downsize(file,kind){
 async function saveCard(e){
  e.preventDefault();
  if(!owner||!canEnter||working)return;
+ if(!progressReady||!cardReady){feedback('Waiting for the saved card and GM milestone record. If this persists, the GM must publish the updated Firestore rules.');return;}
  const form=e.target;if(!form.reportValidity())return;
  const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft,trainerProgress);
  if(sheetError){feedback(sheetError);return}
@@ -289,16 +290,18 @@ function collectWithoutRedraw(form,key){
 }
 function subscribe(){
  if(stopCard)stopCard();
- stopProgress?.();stopProgress=null;trainerProgress=null;
+ stopProgress?.();stopProgress=null;trainerProgress=null;progressReady=false;cardReady=false;
  subscribeParty();
  owner=profileUid===user.uid;
  dirty=false;
  gate(owner?'Preparing your Trainer Card':'Loading Trainer record','Fetching the saved profile.');
  stopProgress=onSnapshot(doc(store,'santara_trainer_progress',profileUid),snapshot=>{
-  trainerProgress=snapshot.exists()?snapshot.data():null;
+  trainerProgress=snapshot.exists()?snapshot.data():null;progressReady=true;
+  if(!cardReady)return;
   if(dirty)updatePreview();else render();
  },e=>console.warn('Trainer milestones unavailable:',e.message));
  stopCard=onSnapshot(doc(store,'santara_trainer_cards',profileUid),snapshot=>{
+  cardReady=true;
   if(!dirty){original=snapshot.exists()?snapshot.data():null;model={...defaults,...original,characterSheet:normalizeTrainerSheet(original?.characterSheet),team:Array.isArray(original?.team)?[...original.team.slice(0,6)]:['','','','','','']};render();}
  },e=>gate('Could not load Trainer Card',errorMessage(e),'<a class="linkbtn" href="./index.html?tab=trainer">Return to roster</a>'));
 }
@@ -311,7 +314,7 @@ function authHandler(u){
  if(stopRole){stopRole();stopRole=null}
  stopParty?.();stopParty=null;stopOwnPokemon?.();stopOwnPokemon=null;partySlots=Array(6).fill(null);ownPokemon=[];ownPokemonLoaded=false;partyReady=false;
  if(stopCard){stopCard();stopCard=null}
- stopProgress?.();stopProgress=null;trainerProgress=null;
+ stopProgress?.();stopProgress=null;trainerProgress=null;progressReady=false;cardReady=false;
  if(stopAccess){stopAccess();stopAccess=null}
  canEnter=false;user=u;dirty=false;original=null;
  if(!user){
