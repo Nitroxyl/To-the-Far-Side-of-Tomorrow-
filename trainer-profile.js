@@ -250,7 +250,7 @@ async function saveCard(e){
   if(!key.startsWith('team'))collectWithoutRedraw(form,key);
  }
  const raw=new FormData(form);
- model.team=partySlots.map(slot=>String(slot?.name||'').slice(0,32));
+ model.team=partyReady?partySlots.map(slot=>String(slot?.name||'').slice(0,32)):(Array.isArray(original?.team)?original.team.slice(0,6):model.team);
  if(!model.trainerName.trim()){feedback('Enter a Trainer name.');return}
  const entry={
   ownerUid:user.uid,
