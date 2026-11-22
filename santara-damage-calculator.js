@@ -294,7 +294,20 @@ function refreshSide(side) {
     el('damage-move').value=preferred||'Flamethrower';
   }
 }
+let currentDamageRolls=[],currentDamageTargetHP=0;
+function rollCalculatedDamage(){
+  if(!currentDamageRolls.length)return;
+  const target=el('rolled-damage');
+  if(!target)return;
+  const rollIndex=Math.floor(Math.random()*currentDamageRolls.length);
+  const damage=currentDamageRolls[rollIndex];
+  const percent=currentDamageTargetHP>0?' ('+(100*damage/currentDamageTargetHP).toFixed(1)+'% of max HP)':'';
+  target.textContent='Rolled: '+damage+' HP'+percent;
+}
 function showResult(res) {
+  // Use the calculator's actual damage outcomes, not interpolation between min and max.
+  currentDamageRolls=Array.isArray(res.rolls)?res.rolls.filter(Number.isFinite):[];
+  currentDamageTargetHP=Number(res.defenderHP)||0;
   const pct=Math.min(100,Math.max(0,res.maxPercent||0));
   const spoilerWeather=!gm&&SPECIAL_WEATHER.includes(res.weather)&&!unlockedWeather(playerProgression,res.weather);
   const notices=spoilerWeather?'<div class="calc-note">An exclusive weather effect is active. Ask the GM for its details.</div>':res.notes.map(s=>'<div class="calc-note">'+escape(s)+'</div>').join('');
@@ -306,6 +319,8 @@ function showResult(res) {
     '<div class="calc-result-value">'+res.min+'–'+res.max+' HP</div>'+
     '<div class="calc-result-sub">'+res.minPercent.toFixed(1)+'–'+res.maxPercent.toFixed(1)+'% of target max HP ('+res.defenderHP+')</div>'+
     '</div><div class="calc-result-ko">'+ko+'<div class="calc-result-sub">Current HP: '+res.currentDefHP+'/'+res.defenderHP+'</div></div></div>'+
+    '<div class="calc-roll-row"><button type="button" id="damage-roll" class="btn primary"'+(currentDamageRolls.length?'':' disabled')+'>🎲 Roll Damage</button>'+
+    '<span id="rolled-damage" class="calc-roll-value" role="status" aria-live="polite">No damage rolled yet</span></div>'+
     '<div class="meter"><span style="width:'+pct.toFixed(2)+'%"></span></div>'+
     '<details class="calc-result-details"><summary>Damage details'+more+'</summary>'+
     '<div class="calc-pills"><span class="chip">'+escape(res.meta.category)+' · '+escape(res.meta.type)+'</span>'+
@@ -346,7 +361,7 @@ function runCalculation() {
       protection:el('damage-protect').checked
     });
     showResult(result);msg('');
-  }catch(err){msg('Calculation failed: '+(err.message||String(err)));el('damage-results').innerHTML='';console.error('Santara damage calculator',err);}
+  }catch(err){currentDamageRolls=[];currentDamageTargetHP=0;msg('Calculation failed: '+(err.message||String(err)));el('damage-results').innerHTML='';console.error('Santara damage calculator',err);}
 }
 function draw() {
   if(!engine()){host.innerHTML='<section class="panel"><h2>Calculation engine did not load</h2><p>The calculator relies on the pinned @smogon/calc 0.12.0 browser scripts. Check your connection or content blocker, then reload this page.</p></section>';return;}
@@ -406,6 +421,7 @@ async function reloadData(){
   }catch(e){host.innerHTML='<section class="panel"><h2>Pokémon records could not load</h2><p>'+escape(e.message||String(e))+'</p><p>Sign into an approved Santara account and verify the published Firebase rules.</p><button class="btn" id="damage-reload">Retry</button></section>';msg('Cannot load calculator data.');}
 }
 host.addEventListener('click',e=>{
+  if(e.target.closest('#damage-roll')){rollCalculatedDamage();return;}
   if(e.target.closest('#damage-run'))runCalculation();
   if(e.target.closest('#damage-reload'))reloadData();
   for(const side of ['a','d']){
