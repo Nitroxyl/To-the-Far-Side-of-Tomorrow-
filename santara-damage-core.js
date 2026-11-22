@@ -196,13 +196,16 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     hits:1,isCrit:!!critical
   }):null;
   const attackingMove=maxMove||chosen.move;
+  const maxBypassesProtection=!!maxInfo&&['G-Max One Blow','G-Max Rapid Flow'].includes(maxInfo.name);
+  const maxThroughProtect=!!maxInfo&&protection&&!maxBypassesProtection;
   const warnings=[...a.warnings,...d.warnings],notes=[];
   if(maxInfo){
     notes.push(maxInfo.name+' ('+maxInfo.power+' BP) replaces '+moveName+'. '+maxInfo.effect);
     notes.push('Max Move secondary effects apply after this attack; manually track weather, terrain, stat stages or residual damage.');
     if(maxInfo.gmax&&maxInfo.power===160)
       warnings.push(maxInfo.name+' ignores relevant opposing Abilities; verify ability bypass manually if needed.');
-    if(protection)notes.push(maxInfo.name+' normally deals 25% damage through Protect; Max Guard fully blocks it, except G-Max One Blow/Rapid Flow.');
+    if(maxThroughProtect)notes.push('Protect reduces this Max Move to 25% damage. Max Guard blocks it completely.');
+    if(protection&&maxBypassesProtection)notes.push(maxInfo.name+' bypasses Protect and even Max Guard.');
   }
   for(const [side,p] of [['Attacker',a],['Defender',d]]){
     const abilityId=id(p.ability);
@@ -228,7 +231,7 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
       isReflect:reflect&&!screensBreak,
       isLightScreen:lightScreen&&!screensBreak,
       isAuroraVeil:(auroraVeil||state.fieldExtras.isCustomVeil)&&!screensBreak,
-      isProtected:state.fieldExtras.isProtected
+      isProtected:maxInfo?false:state.fieldExtras.isProtected
     },
     attackerSide:{isHelpingHand:helpingHand}
   });
@@ -257,7 +260,7 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     });
   }
   const result=calc.calculate(gen,a.pokemon,d.pokemon,calculationMove,field);
-  const rolls=damageRolls(result.damage).map(v=>Math.max(0,Math.floor(v*extra)));
+  const rolls=damageRolls(result.damage).map(v=>Math.max(0,Math.floor(v*extra*(maxThroughProtect?0.25:1))));
   const min=Math.min(...rolls),max=Math.max(...rolls);
   const defenderHP=d.pokemon.maxHP();
   const currentDefHP=d.pokemon.curHP();
