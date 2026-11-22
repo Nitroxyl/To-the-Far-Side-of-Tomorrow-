@@ -5,7 +5,7 @@ import {applyMegaOverlays} from './pokemon-mega-assignments.js?v=required-stone-
 import {SANTARA_MEGA_PREVIEWS,officialMegaPreviews,eligibleMegaForms,requiredStoneFor,matchesMegaStone,megaStoneNames,isStoryMega} from './santara-calculator-megas.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
-import {computeDamage,titleType} from './santara-damage-core.js?v=max-moves-20261123-1';
+import {computeDamage,titleType} from './santara-damage-core.js?v=max-moves-20261123-2';
 import {canGigantamax,savedGigantamax} from './santara-max-moves.js';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
