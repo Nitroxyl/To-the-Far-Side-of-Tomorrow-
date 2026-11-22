@@ -2,7 +2,7 @@
 // Uploaded photos are resized to small WebP data URLs before storage in Firestore.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
-import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
+import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-compact-editor-20261118-1';
 
@@ -306,11 +306,30 @@ async function saveCard(e){
   updatedAt:serverTimestamp()
  };
  if(entry.portraitData.length>150000||entry.bannerData.length>260000){feedback('Image size limit exceeded.');return}
+ // Saving one page must never rewrite the other page's saved data.
+ // Partial updates also prevent unrelated legacy fields or GM Gym milestones
+ // from blocking a harmless identity edit.
+ const cardFields=['trainerName','trainerClass','trainerTitle','hometown',
+  'partnerPokemon','favoriteType','theme','avatar','quote','team','pattern',
+  'customPrimary','customSecondary','portraitData','bannerData'];
+ const changedCard=Object.fromEntries(cardFields
+  .filter(key=>JSON.stringify(original?.[key])!==JSON.stringify(entry[key]))
+  .map(key=>[key,entry[key]]));
+ const patch=CHARACTER_PAGE
+  ?{characterSheet:entry.characterSheet,updatedAt:serverTimestamp()}
+  :{...changedCard,updatedAt:serverTimestamp()};
  working=true;const btn=form.querySelector('button[type=submit]');if(btn){btn.disabled=true;btn.textContent='Saving…'}
- feedback('Saving Trainer Card to Firestore…');
+ feedback('Saving '+(CHARACTER_PAGE?'Character Sheet':'Trainer Card')+' to Firestore…');
  try{
-  await setDoc(doc(store,'santara_trainer_cards',user.uid),entry);
-  dirty=false;feedback(CHARACTER_PAGE?'Character Sheet saved! Your progress and talents are on record.':'Trainer Card saved! The party can now view your updated profile.');
+  const ref=doc(store,'santara_trainer_cards',user.uid);
+  if(original)await updateDoc(ref,patch);
+  else await setDoc(ref,entry);
+  dirty=false;
+  if(original){
+   // Keep the local snapshot coherent even if a live listener is delayed.
+   original={...original,...(CHARACTER_PAGE?{characterSheet:entry.characterSheet}:changedCard)};
+  }else original={...entry};
+  feedback(CHARACTER_PAGE?'Character Sheet saved! Your progress and talents are on record.':'Trainer Card saved! The party can now view your updated profile.');
  }catch(err){feedback('Save failed: '+errorMessage(err))}
  finally{working=false;if(btn){btn.disabled=false;btn.textContent=CHARACTER_PAGE?'Save Character Sheet':'Save Trainer Card'}}
 }
