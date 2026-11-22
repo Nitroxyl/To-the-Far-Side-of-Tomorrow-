@@ -5,7 +5,8 @@ import {applyMegaOverlays} from './pokemon-mega-assignments.js?v=required-stone-
 import {SANTARA_MEGA_PREVIEWS,officialMegaPreviews,eligibleMegaForms,requiredStoneFor,matchesMegaStone,megaStoneNames,isStoryMega} from './santara-calculator-megas.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
-import {computeDamage,titleType} from './santara-damage-core.js?v=saved-natures-20261123-1';
+import {computeDamage,titleType} from './santara-damage-core.js?v=max-moves-20261123-1';
+import {canGigantamax,savedGigantamax} from './santara-max-moves.js';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
 const chip=document.querySelector('#user-chip'),feedback=document.querySelector('#calc-feedback');
@@ -154,7 +155,8 @@ function sideMarkup(side,title,selected){
   '<div class="calc-toggle-grid">'+
   toggleMarkup(side+'-mega','Mega')+
   toggleMarkup(side+'-tera','Tera')+
-  toggleMarkup(side+'-dmax','Dynamax')+'</div>'+
+  toggleMarkup(side+'-dmax','Dynamax')+
+  '<label class="calc-toggle" id="'+side+'-gmax-wrap" hidden><input type="checkbox" id="'+side+'-gmax"><span>Gigantamax</span></label></div>'+
   '<div class="calc-mega-form" id="'+side+'-mega-wrap" hidden>'+
   '<label class="field">Mega form<select id="'+side+'-mega-form"></select></label>'+
   '<p class="calc-muted" id="'+side+'-mega-hint"></p>'+
@@ -207,6 +209,7 @@ function readSide(side){
     hpPercent:readNum(side+'-hp',100),status:readStr(side+'-status'),
     mega:el(side+'-mega').checked,tera:el(side+'-tera').checked,
     teraType:readStr(side+'-teratype'),dynamax:el(side+'-dmax').checked,
+    gigantamax:el(side+'-gmax').checked,
     boosts:Object.fromEntries(['atk','def','spa','spd'].map(key=>[key,readNum(side+'-boost-'+key)]))
   };
 }
@@ -253,6 +256,15 @@ function calculationSource(side){
  return source?{...source,megaForm:form,megaActive:mega,
    megaRequiredStone:mega?requiredStoneFor(source,form):''}:null;
 }
+function updateGigantamaxToggle(side){
+ const source=sourceFor(side),toggle=el(side+'-gmax'),wrap=el(side+'-gmax-wrap');
+ if(!toggle||!wrap)return;
+ const allowed=canGigantamax(source)&&el(side+'-dmax').checked&&!el(side+'-dmax').disabled
+   &&!el(side+'-mega').checked&&!el(side+'-tera').checked;
+ wrap.hidden=!allowed;
+ toggle.disabled=!allowed;
+ if(!allowed)toggle.checked=false;
+}
 function refreshSide(side) {
   const source=sourceFor(side);
   if(!source)return;
@@ -284,6 +296,8 @@ function refreshSide(side) {
   el(side+'-teratype').value=titleType(source.teraType||source.types?.[0]||'Normal');
   el(side+'-dmax').checked=dynamaxAllowed&&!!source.dynamaxTurns;
   el(side+'-dmax').disabled=!dynamaxAllowed;
+  el(side+'-gmax').checked=savedGigantamax(source)&&el(side+'-dmax').checked;
+  updateGigantamaxToggle(side);
   for(const key of ['atk','def','spa','spd'])el(side+'-boost-'+key).value='0';
   if(side==='a'){
     const preferred=(source.moves||[]).find(name=>{
@@ -316,7 +330,8 @@ function showResult(res) {
   const more=res.warnings.length?' · '+res.warnings.length+' manual check'+(res.warnings.length===1?'':'s'):'';
   el('damage-results').innerHTML='<section class="calc-result">'+
     '<div class="calc-result-main"><div><span class="eyebrow">ESTIMATED DAMAGE</span>'+
-    '<div class="calc-result-value">'+res.min+'–'+res.max+' HP</div>'+
+    '<div class="calc-result-value">'+res.min+'–'+res.max+' HP</div>'+ 
+    (res.meta?.maxMove?'<div class="calc-result-sub calc-max-move"><b>'+escape(res.meta.originalMove)+' → '+escape(res.meta.moveName)+'</b>'+(res.meta.gmax?' · Gigantamax':' · Dynamax')+'</div>':'')+
     '<div class="calc-result-sub">'+res.minPercent.toFixed(1)+'–'+res.maxPercent.toFixed(1)+'% of target max HP ('+res.defenderHP+')</div>'+
     '</div><div class="calc-result-ko">'+ko+'<div class="calc-result-sub">Current HP: '+res.currentDefHP+'/'+res.defenderHP+'</div></div></div>'+
     '<div class="calc-roll-row"><button type="button" id="damage-roll" class="btn primary"'+(currentDamageRolls.length?'':' disabled')+'>🎲 Roll Damage</button>'+
@@ -446,6 +461,7 @@ host.addEventListener('change',e=>{
   if(e.target.id==='a-choice')refreshSide('a');
   if(e.target.id==='d-choice')refreshSide('d');
   if(['a-mega','d-mega'].includes(e.target.id))syncMegaAbility(e.target.id[0]);
+  if(['a-dmax','d-dmax','a-gmax','d-gmax','a-mega','d-mega','a-tera','d-tera'].includes(e.target.id))updateGigantamaxToggle(e.target.id[0]);
   if(['a-mega-form','d-mega-form'].includes(e.target.id)){
     const side=e.target.id[0];
     refreshMegaControls(side);
