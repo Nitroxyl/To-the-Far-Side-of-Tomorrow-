@@ -50,3 +50,35 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 .memory-locked-list{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
 .memory-locked-item{display:flex;flex-direction:column;gap:2px;padding:7px 10px;color:var(--text);background:#172b38;border:1px dashed #466273;border-radius:9px;font-size:12px}
 .memory-locked-item small{color:var(--muted);font-size:10px}
+
+
+/* Gigantamax artwork reference in the Pokémon customization editor.
+   Preview-only: expanding the image never changes battle gimmicks or Firestore. */
+.gmax-customization-preview{min-width:0}
+.gmax-artwork{overflow:hidden;border:1px solid #715a79;border-radius:15px;background:linear-gradient(120deg,#251d39,#192d3c 75%);color:var(--text)}
+.gmax-artwork summary{list-style:none;display:flex;align-items:center;gap:13px;min-height:90px;padding:10px 13px;cursor:pointer}
+.gmax-artwork summary::-webkit-details-marker{display:none}
+.gmax-artwork summary:focus-visible{outline:2px solid var(--teal);outline-offset:-3px}
+.gmax-artwork summary:hover{background:#ffffff08}
+.gmax-artwork-thumbnail{display:grid;place-items:center;flex:none;width:74px;height:74px;border:1px solid #785b79;border-radius:12px;background:#1a2535;overflow:hidden}
+.gmax-artwork-thumbnail img{display:block;width:100%;height:100%;object-fit:contain}
+.gmax-artwork-heading{display:flex;flex-direction:column;gap:3px;min-width:0}
+.gmax-artwork-heading b{font-size:14px;color:#ffe3f2}
+.gmax-artwork-heading small{font-size:12px;color:#b8c8d4;font-weight:500;line-height:1.4}
+.gmax-artwork-expand{font-size:23px;line-height:1;margin-left:auto;color:#ddb4d9;transition:transform .16s ease}
+.gmax-artwork[open] .gmax-artwork-expand{transform:rotate(180deg)}
+.gmax-artwork-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 13px 12px}
+.gmax-artwork-comparison figure{margin:0;min-width:0;border:1px solid #496072;border-radius:12px;background:#102331;overflow:hidden}
+.gmax-artwork-canvas{display:grid;place-items:center;height:210px;padding:10px;background:radial-gradient(circle at 50% 55%,#2e4354,#102331 70%)}
+.gmax-artwork-canvas img,.gmax-artwork-canvas .poke-art{display:block;width:100%;height:100%;object-fit:contain}
+.gmax-artwork-comparison figcaption{padding:9px 8px;text-align:center;font-size:12px;font-weight:700;color:#d9e8f1}
+.gmax-artwork p.hint{padding:0 15px 12px;margin:0;font-weight:500}
+@media(max-width:620px){
+ .gmax-artwork summary{gap:9px;padding:9px}
+ .gmax-artwork-thumbnail{width:58px;height:58px}
+ .gmax-artwork-heading b{font-size:12px}
+ .gmax-artwork-heading small{font-size:11px}
+ .gmax-artwork-comparison{gap:8px;padding:0 9px 10px}
+ .gmax-artwork-canvas{height:150px;padding:6px}
+ .gmax-artwork-comparison figcaption{font-size:11px}
+}
