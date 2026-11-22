@@ -994,13 +994,20 @@ async function saveTracking(form){
  if(!Number.isInteger(slot)||slot<0||slot>6)throw Error('Invalid slot.');
  const status=String(f.get('status'));
  if(!statuses.includes(status))throw Error('Invalid status.');
- const payload={currentHp:hp,status,slot,nickname:cap(f.get('nickname'),32),notes:cap(f.get('notes'),1000),updatedAt:serverTimestamp()};
- const occupying=pokemon.find(m=>m.id!==mon.id&&m.ownerUid===mon.ownerUid&&Number(m.slot)===slot&&slot>0);
+ // Only send fields that were actually edited. In particular, a nickname
+ // change must not rewrite unrelated legacy Pokémon fields or party slots.
+ const values={currentHp:hp,status,slot,nickname:cap(f.get('nickname'),32),notes:cap(f.get('notes'),1000)};
+ const changed=Object.fromEntries(Object.entries(values).filter(([key,value])=>value!==mon[key]));
+ if(!Object.keys(changed).length){say('No changes to save.');return;}
+ const slotChanged=Object.hasOwn(changed,'slot');
+ const occupying=slotChanged&&slot>0
+  ?pokemon.find(m=>m.id!==mon.id&&m.ownerUid===mon.ownerUid&&Number(m.slot)===slot)
+  :null;
  const batch=writeBatch(store);
  if(occupying)batch.update(doc(store,'santara_pokemon',occupying.id),{slot:Number(mon.slot)||0,updatedAt:serverTimestamp()});
- batch.update(doc(store,'santara_pokemon',mon.id),payload);
+ batch.update(doc(store,'santara_pokemon',mon.id),{...changed,updatedAt:serverTimestamp()});
  await batch.commit();
- say('Battle record saved.');render();
+ say('Pokémon record saved.');render();
 }
 root.addEventListener('click',async e=>{
  const b=e.target.closest('[data-act]');if(!b||busy)return;
