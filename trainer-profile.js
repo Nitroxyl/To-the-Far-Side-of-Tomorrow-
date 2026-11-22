@@ -1,7 +1,7 @@
 // Santara Trainer Passport: current Firebase user owns one personal card.
 // Uploaded photos are resized to small WebP data URLs before storage in Firestore.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, getIdTokenResult } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import { getFirestore, doc, collection, query, where, getDoc, onSnapshot, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {blankTrainerSheet,normalizeTrainerSheet,readTrainerSheet,validateTrainerSheet,renderTrainerSheetEditor,renderTrainerSheetViewer} from './trainer-character-sheet.js?v=trainer-compact-editor-20261118-1';
@@ -268,7 +268,8 @@ async function saveCard(e){
  if(!owner||!canEnter||working)return;
  if(!progressReady||!cardReady){feedback('Waiting for the saved card and GM milestone record. If this persists, the GM must publish the updated Firestore rules.');return;}
  const form=e.target;if(!form.reportValidity())return;
- const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=validateTrainerSheet(sheetDraft,trainerProgress);
+ // A card-only edit must never be blocked by validation of an unrelated sheet.
+ const sheetDraft=readTrainerSheet(form,model.characterSheet),sheetError=CHARACTER_PAGE?validateTrainerSheet(sheetDraft,trainerProgress):'';
  if(sheetError){
   if(CHARACTER_PAGE){
    const problem=sheetError.toLowerCase();
@@ -276,7 +277,7 @@ async function saveCard(e){
   }
   feedback(sheetError);return
  }
- model.characterSheet=normalizeTrainerSheet(sheetDraft);
+ if(CHARACTER_PAGE)model.characterSheet=normalizeTrainerSheet(sheetDraft);
  for(const key of ['trainerName','trainerClass','trainerTitle','hometown','partnerPokemon','favoriteType','theme','avatar','quote','pattern','customPrimary','customSecondary',...Array.from({length:6},(_,i)=>'team'+i)]){
   // Field may be in a hidden editor pane; FormData still includes it.
   if(!key.startsWith('team'))collectWithoutRedraw(form,key);
@@ -318,19 +319,38 @@ async function saveCard(e){
  const patch=CHARACTER_PAGE
   ?{characterSheet:entry.characterSheet,updatedAt:serverTimestamp()}
   :{...changedCard,updatedAt:serverTimestamp()};
+ // New cards should not create a characterSheet unless the owner is editing
+ // that page. The Firestore schema explicitly makes characterSheet optional.
+ const createEntry=CHARACTER_PAGE?entry:((({characterSheet,...card})=>card)(entry));
  working=true;const btn=form.querySelector('button[type=submit]');if(btn){btn.disabled=true;btn.textContent='Saving…'}
  feedback('Saving '+(CHARACTER_PAGE?'Character Sheet':'Trainer Card')+' to Firestore…');
  try{
-  const ref=doc(store,'santara_trainer_cards',user.uid);
+  // Refresh claims in case email verification was completed recently.
+  // Gmail addresses are supported, but approval and verification use Firebase UID/claims.
+  const current=auth.currentUser;
+  if(!current||current.uid!==user.uid)throw new Error('Your signed-in account changed. Reopen the Trainer Card under the approved account.');
+  const token=await getIdTokenResult(current,true);
+  if(current.uid!==GM_UID&&token.claims.email_verified!==true){
+    throw new Error('Firebase still shows this account as unverified. Verify your email and sign in again, or use the matching Google account.');
+  }
+  const ref=doc(store,'santara_trainer_cards',current.uid);
   if(original)await updateDoc(ref,patch);
-  else await setDoc(ref,entry);
+  else await setDoc(ref,createEntry);
   dirty=false;
   if(original){
    // Keep the local snapshot coherent even if a live listener is delayed.
    original={...original,...(CHARACTER_PAGE?{characterSheet:entry.characterSheet}:changedCard)};
-  }else original={...entry};
+  }else original={...createEntry};
   feedback(CHARACTER_PAGE?'Character Sheet saved! Your progress and talents are on record.':'Trainer Card saved! The party can now view your updated profile.');
- }catch(err){feedback('Save failed: '+errorMessage(err))}
+ }catch(err){
+  if(err?.code==='permission-denied'){
+    console.warn('Trainer Card write rejected', {
+      uid:user?.uid,cardExists:!!original,page:CHARACTER_PAGE?'character':'card',
+      fields:original?Object.keys(patch):Object.keys(createEntry)
+    });
+    feedback('Save denied by Firestore. Check that this exact Firebase account UID is approved in GM Account Access and that the latest rules are published. Your edits remain on this page.');
+  }else feedback('Save failed: '+errorMessage(err));
+ }
  finally{working=false;if(btn){btn.disabled=false;btn.textContent=CHARACTER_PAGE?'Save Character Sheet':'Save Trainer Card'}}
 }
 function collectWithoutRedraw(form,key){
