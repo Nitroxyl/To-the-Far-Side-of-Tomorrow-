@@ -30,6 +30,10 @@
 .calc-result-ko{font-size:13px;font-weight:700;text-align:right}
 .calc-result .meter{height:7px;background:#0b1825;border-radius:10px;overflow:hidden;margin:9px 0 0}
 .calc-result .meter>span{display:block;height:100%;background:linear-gradient(90deg,#4aaeb0,#e4be77)}
+.calc-roll-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:13px 0 10px}
+.calc-roll-row #damage-roll{min-width:148px;cursor:pointer}
+.calc-roll-row #damage-roll:disabled{opacity:.5;cursor:not-allowed}
+.calc-roll-value{display:inline-block;font-size:14px;font-weight:800;color:#c8f5e6;line-height:1.4}
 .calc-result-details{margin-top:7px;border-top:1px solid #345260}
 .calc-result-details summary{padding:7px 0 0;color:var(--teal);font-size:12px;cursor:pointer;font-weight:700}
 .calc-result-details p{margin:8px 0}
@@ -117,5 +121,5 @@
 <div id="calc-app"><section class="panel">Loading the Pokémon calculation engine and your Trainer records…</section></div>
 <footer>SANTARA REGIONAL RESEARCH NETWORK · CALCULATIONS DO NOT UPDATE BATTLE RECORDS</footer>
 </main>
-<script type="module" src="./santara-damage-calculator.js?v=megastone-preview-20261114-1"></script>
+<script type="module" src="./santara-damage-calculator.js?v=damage-roll-20261122-1"></script>
 </body></html>
