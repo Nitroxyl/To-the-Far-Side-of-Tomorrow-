@@ -80,7 +80,7 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
   const options={
     name,level,
     gender:'M',
-    nature:settings.nature || 'Serious',
+    nature:settings.nature || source.nature || 'Serious',
     ivs:{...PERFECT_IVS},
     evs:{...NO_EVS},
     boosts:{...NO_EVS,...settings.boosts},
