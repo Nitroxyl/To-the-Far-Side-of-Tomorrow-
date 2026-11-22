@@ -1,4 +1,5 @@
 import {knownMove,moveProperties,recognizedCustomAbility,setupSpecialEffects,additionalDamageEffects,afterDamageEffects} from './santara-damage-rules.js?v=custom-20261114-4';
+import {convertedMaxMove,canGigantamax} from './santara-max-moves.js';
 // Santara V6 damage adapter. Read-only: never modifies a saved Pokemon.
 // Underlying cartridge rules: @smogon/calc 0.12.0 (Generation 9).
 export const STAT_IDS = ['hp','atk','def','spa','spd','spe'];
@@ -159,8 +160,50 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   const equipped=Array.isArray(attacker?.moves)&&attacker.moves.some(x=>id(x)===id(moveName));
   if(!allowUnregisteredCustomMoves&&!gen.moves.get(id(moveName))&&!catalogued&&!equipped)
     throw Error('This custom move has not been unlocked or equipped yet.');
+  if(attackerSettings.gigantamax&&!attackerSettings.dynamax)
+    throw Error('Gigantamax requires Dynamax to be active.');
+  if(attackerSettings.gigantamax&&!canGigantamax(attacker))
+    throw Error('The selected Pokémon has no official Gigantamax form.');
+  if(attackerSettings.dynamax&&(attackerSettings.mega||attackerSettings.tera))
+    throw Error('Dynamax cannot be combined with Mega Evolution or Terastallization.');
+  const originalMove=gen.moves.get(id(moveName));
+  const originalProps=moveProperties(moveName,catalogued);
+  const originalCategory=originalProps.category||originalMove?.category;
+  const statusMax=attackerSettings.dynamax&&originalCategory==='Status'
+    ?convertedMaxMove({name:moveName,type:'Normal',category:'Status'},attacker)
+    :null;
+  if(statusMax){
+    const defenderHP=d.pokemon.maxHP(),currentDefHP=d.pokemon.curHP();
+    return {min:0,max:0,rolls:[],defenderHP,currentDefHP,koChance:0,
+      minPercent:0,maxPercent:0,attackerHP:a.pokemon.maxHP(),
+      attackerStats:a.pokemon.rawStats,defenderStats:d.pokemon.rawStats,
+      ability:a.ability,basePower:0,accuracy:100,weather,fullDescription:'',
+      notes:['Max Guard: '+statusMax.effect,'No damage is rolled for a status move.'],
+      warnings:[...a.warnings,...d.warnings],
+      meta:{type:'Normal',category:'Status',hits:0,critical:false,spread:'self',
+        moveName:statusMax.name,originalMove:moveName,maxMove:true,gmax:false}};
+  }
   const chosen=makeMove(calc,gen,moveName,customMoves,a.ability,hits,critical);
+  const maxInfo=attackerSettings.dynamax?convertedMaxMove({
+    name:moveName,type:chosen.move.type,category:chosen.move.category,power:chosen.basePower
+  },attacker,{gigantamax:!!attackerSettings.gigantamax,officialMove:catalogued?null:originalMove}):null;
+  // Max moves are one attack, regardless of the original move's number of hits.
+  // Use the official Max/G-Max move data when available for appropriate mechanics.
+  const nativeMax=maxInfo?gen.moves.get(id(maxInfo.name)):null;
+  const maxMove=maxInfo?new calc.Move(gen,nativeMax?.name||originalMove?.name||moveName,{
+    overrides:{name:maxInfo.name,type:maxInfo.type,category:maxInfo.category,
+      basePower:maxInfo.power,accuracy:100,target:'normal',flags:{},isMax:true},
+    hits:1,isCrit:!!critical
+  }):null;
+  const attackingMove=maxMove||chosen.move;
   const warnings=[...a.warnings,...d.warnings],notes=[];
+  if(maxInfo){
+    notes.push(maxInfo.name+' ('+maxInfo.power+' BP) replaces '+moveName+'. '+maxInfo.effect);
+    notes.push('Max Move secondary effects apply after this attack; manually track weather, terrain, stat stages or residual damage.');
+    if(maxInfo.gmax&&maxInfo.power===160)
+      warnings.push(maxInfo.name+' ignores relevant opposing Abilities; verify ability bypass manually if needed.');
+    if(protection)notes.push(maxInfo.name+' normally deals 25% damage through Protect; Max Guard fully blocks it, except G-Max One Blow/Rapid Flow.');
+  }
   for(const [side,p] of [['Attacker',a],['Defender',d]]){
     const abilityId=id(p.ability);
     const official=gen.abilities.get(abilityId);
@@ -169,13 +212,13 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     }
   }
   const state=setupSpecialEffects({
-    attacker:a,defender:d,move:chosen.move,weather,exposed,auroraChorusActive,
+    attacker:a,defender:d,move:attackingMove,weather,exposed,auroraChorusActive,
     siegeBoosted,protection,gameType
   });
   notes.push(...state.notes);
   warnings.push(...state.warnings);
   if(id(a.ability)==='systemoverride'&&exposed)d.ability='';
-  const screensBreak=id(moveName)==='schradebreaker';
+  const screensBreak=!maxInfo&&id(moveName)==='schradebreaker';
   const field=new calc.Field({
     weather:state.fieldExtras.weather,terrain:terrain||undefined,gameType,
     isSwordOfRuin:state.fieldExtras.isSwordOfRuin,
@@ -190,12 +233,12 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
     attackerSide:{isHelpingHand:helpingHand}
   });
   const effectiveTypes=d.pokemon.teraType?[d.pokemon.teraType]:d.pokemon.types;
-  const match=matchup(gen,chosen.move.type,effectiveTypes);
+  const match=matchup(gen,attackingMove.type,effectiveTypes);
   const extra=additionalDamageEffects({
-    attacker:a,defender:d,move:chosen.move,activeWeather:state.activeWeather,
+    attacker:a,defender:d,move:attackingMove,activeWeather:state.activeWeather,
     exposed,match,notes,manual:state.manual
   });
-  if(chosen.custom?.description&&
+  if(!maxInfo&&chosen.custom?.description&&
     !chosen.preset?.effect)warnings.push('Move description contains non-damage effects; review the move text after the hit.');
   if(id(moveName)==='nihillight'&&protection)warnings.push('Nihil Light protection bypass is provisional.');
   if((a.form.mega&&attackerSettings.tera)||(d.form.mega&&defenderSettings.tera))
@@ -203,8 +246,8 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   // Skybreaker uses Thousand Arrows' official immunity-bypass path while
   // preserving the original Ground move's Base Power, category and flags.
   // The ordinary Move name is retained for all UI and secondary effects.
-  let calculationMove=chosen.move;
-  if(id(a.ability)==='skybreaker'&&chosen.move.type==='Ground'){
+  let calculationMove=attackingMove;
+  if(!maxInfo&&id(a.ability)==='skybreaker'&&chosen.move.type==='Ground'){
     calculationMove=new calc.Move(gen,'Thousand Arrows',{
       overrides:{name:'Thousand Arrows',type:'Ground',
         basePower:chosen.move.bp,category:chosen.move.category,
@@ -220,20 +263,22 @@ export function computeDamage(calc,{attacker,defender,moveName,attackerSettings=
   const currentDefHP=d.pokemon.curHP();
   const koChance=rolls.filter(v=>v>=currentDefHP).length/rolls.length*100;
   const followups=afterDamageEffects({
-    attacker:a,defender:d,move:chosen.move,min,max,koChance,manual:state.manual
+    attacker:a,defender:d,move:attackingMove,min,max,koChance,manual:state.manual
   });
   notes.push(...followups);
-  const accuracy=state.activeWeather==='Royal Tempest'&&
+  const accuracy=maxInfo?100:state.activeWeather==='Royal Tempest'&&
     ['thunder','hurricane'].includes(id(moveName))?100:chosen.accuracy;
   return {
     min,max,rolls,defenderHP,currentDefHP,koChance,
     minPercent:100*min/defenderHP,maxPercent:100*max/defenderHP,
     attackerHP:a.pokemon.maxHP(),attackerStats:a.pokemon.rawStats,
     defenderStats:d.pokemon.rawStats,ability:a.ability,
-    basePower:chosen.basePower,accuracy,
+    basePower:maxInfo?.power??chosen.basePower,accuracy,
     weather:state.activeWeather,notes,warnings,
     fullDescription:extra===1?safeDescription(result):'',
-    meta:{type:chosen.move.type,category:chosen.move.category,hits:chosen.move.hits,
-      critical:chosen.move.isCrit,spread:chosen.move.target}
+    meta:{type:attackingMove.type,category:attackingMove.category,hits:maxInfo?1:chosen.move.hits,
+      critical:attackingMove.isCrit,spread:attackingMove.target,
+      moveName:maxInfo?.name||moveName,originalMove:maxInfo?moveName:null,
+      maxMove:!!maxInfo,gmax:!!maxInfo?.gmax}
   };
 }
