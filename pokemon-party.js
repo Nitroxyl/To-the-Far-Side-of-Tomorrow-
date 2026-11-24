@@ -972,7 +972,7 @@ function detail(m){
  <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">Grid movement: <b>${d.movementSquares} squares</b> (${d.movementFeet} ft). D&D level: ${d.dndLevel}/20; proficiency: +${d.proficiencyBonus}. These remain useful for adventure encounters.</p>
  <p class="flag">V6: Pokémon damage and defenses use the standard Pokémon formula, not the old dice or stat-tier multipliers. All IVs are effectively perfect (31). <a href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Open the calculator</a>.</p>
- ${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV6(m.baseStats,m.level)?'<p class="hint">Stored max HP '+m.maxHp+' differs from V6 standard '+maxHpV6(m.baseStats,m.level)+' (zero HP EVs). The GM can explicitly recalculate HP and save in Edit Pokémon; existing custom HP is preserved until then.</p>':''}
+ ${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV6(m.baseStats,m.level,m.statPoints)?'<p class="hint">Stored max HP '+m.maxHp+' differs from V6 SP-adjusted standard '+maxHpV6(m.baseStats,m.level,m.statPoints)+'. The GM can explicitly recalculate HP and save in Edit Pokémon; existing custom HP is preserved until then.</p>':''}
  <div class="actions"><a class="btn primary" href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Calculate Damage</a><button type="button" class="btn" data-act="manage-moves">Manage Moves / Remember Moves</button></div><div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
   const info=moveInfo[name],special=customMoveByName(name);
   const cls=info?.classification||classifyMove(name,special||null);
@@ -1012,7 +1012,7 @@ function refreshLevelHpPreview(form,force=false){
  if(!GM_SITE||!form||!validStats(mon?.baseStats)||!Number.isInteger(level)||level<1||level>100)return;
  const hpMax=form.elements.maxHp,hpNow=form.elements.currentHp;
  const previous=Number(hpMax.value),previousGenerated=Number(hpMax.dataset.generated);
- const suggested=maxHpV6(mon.baseStats,level);
+ const suggested=maxHpV6(mon.baseStats,level,mon.statPoints);
  const auto=force||previous===previousGenerated;
  if(auto){
   const current=hpAfterMaxChange(Number(hpNow.value),previous,suggested);
@@ -1034,7 +1034,7 @@ function gmForm(){
  const existing=pokemon.find(m=>m.id===editingId);
  const d=draft||existing||{};
  const level=Number(d.level)||5;
- const defaultHp=validStats(d.baseStats)?maxHpV6(d.baseStats,level):'';
+ const defaultHp=validStats(d.baseStats)?maxHpV6(d.baseStats,level,d.statPoints):'';
  return `<section class="panel"><div class="toolbar"><h2>${existing?'Edit Pokémon':'Assign Pokémon'}</h2><button class="btn" data-act="back">← Cancel</button></div>
  <form id="assign-form" class="form-grid">
  <label class="field full">Species / Form<input id="species-query" name="species" list="species-list" required placeholder="e.g. Riolu, Charizard, custom Mega Charizard Z" value="${esc(d.speciesName||'')}"><datalist id="species-list">${availableCustomSpecies().map(x=>`<option value="${esc(x.name)}"></option>`).join('')}</datalist></label>
@@ -1056,7 +1056,7 @@ function gmForm(){
  <div class="actions"><button type="button" class="btn small" data-act="define-move">+ Define custom move</button><button type="button" class="btn small" data-act="define-ability">+ Define custom ability</button></div></div>
  <label class="field full">Location obtained / history<input name="origin" maxlength="150" value="${esc(d.origin||'')}"></label>
  <label class="field full">Shared notes (visible to Trainer)<textarea name="notes" maxlength="1000">${esc(d.notes||'')}</textarea></label>
- <p class="hint full">V6 uses standard Pokémon HP at perfect IVs (31) and 0 EVs by default. Existing saved HP is never changed by opening this editor. Recalculate HP explicitly, then Save, to migrate older records.</p>
+ <p class="hint full">V6 uses perfect IVs (31) and each Pokémon’s SP allocation. Untrained Pokémon have zero bonus. Existing saved HP is never changed by opening this editor. Recalculate HP explicitly, then Save, to migrate older records.</p>
  <div class="actions"><button class="btn primary" type="submit" ${draft||existing?'':'disabled'}>${existing?'Save Pokémon':'Assign to Trainer'}</button></div>
  </form></section>`;
 }
@@ -1189,7 +1189,7 @@ async function saveAssign(form){
   ownerUid,speciesKey:d.speciesKey,speciesName:d.speciesName,source:d.source,
   baseStats:d.baseStats,types:d.types,abilities:d.abilities||[],spriteUrl:d.spriteUrl||'',spriteData:d.spriteData||'',
   nickname:cap(f.get('nickname'),32),level,ability:cap(f.get('ability'),48),
-  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),
+  maxHp,currentHp,status:existing?.status||'None',slot,heldItem:cap(f.get('heldItem'),80),statPoints:parseStatPoints(existing?.statPoints),moves,origin:cap(f.get('origin'),150),notes:cap(f.get('notes'),1000),
   teraType,megaForm,megaActive:(existing?.megaForm?.slug===megaSlug&&existing?.megaActive===true)||false,
   teraActive:existing?.teraActive===true,zUsed:existing?.zUsed===true,
   dynamaxTurns:Math.max(0,Math.min(3,Number(existing?.dynamaxTurns)||0)),
