@@ -102,3 +102,23 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
  .pokemon-level-preview{grid-column:auto;grid-row:auto}
  .pokemon-level-form .btn{width:100%}
 }
+
+
+/* Shared Trainer Training Points, per-Pokémon Champions-style Stat Points. */
+.training-overview{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.training-overview>div{flex:1;min-width:220px}
+.training-overview .eyebrow{display:block;margin-bottom:7px}
+.training-overview h3{margin:0 0 6px}
+.training-overview .hint{margin:6px 0;line-height:1.5}
+.training-award-form{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.training-award-form .field{width:118px}
+.training-award-form button{white-space:nowrap}
+.stat-points-section{margin:20px 0 4px;padding:15px;background:#122b36;border:1px solid #3d736c;border-radius:12px}
+.stat-points-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.stat-points-heading h4{margin:0;font-size:17px}
+.stat-points-section>.hint{margin:10px 0 16px;line-height:1.5}
+.stat-point-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;grid-column:1/-1}
+.sp-field small{font-size:10px;color:#9eb9c0}
+#pokemon-sp-form .actions,#pokemon-sp-form #pokemon-sp-preview{grid-column:1/-1}
+#pokemon-sp-preview{margin:0;line-height:1.5;color:#bbe2d9}
+@media(max-width:650px){.stat-point-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.training-overview{align-items:flex-start}}
