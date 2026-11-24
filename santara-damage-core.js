@@ -1,5 +1,6 @@
 import {knownMove,moveProperties,recognizedCustomAbility,setupSpecialEffects,additionalDamageEffects,afterDamageEffects} from './santara-damage-rules.js?v=custom-20261114-4';
 import {convertedMaxMove,canGigantamax} from './santara-max-moves.js';
+import {spToEvs} from './pokemon-stat-points.js';
 // Santara V6 damage adapter. Read-only: never modifies a saved Pokemon.
 // Underlying cartridge rules: @smogon/calc 0.12.0 (Generation 9).
 export const STAT_IDS = ['hp','atk','def','spa','spd','spe'];
@@ -21,8 +22,8 @@ export function statTable(base) {
   }
   return out;
 }
-// EV training is disabled for Santara. Keep this adapter for older callers,
-// but always return zero EVs, even if a legacy UI supplies stored EV numbers.
+// Santara uses SP rather than editable EVs. Legacy direct EV inputs remain disabled;
+// the calculator translates saved SP at the formula boundary.
 export function legalEvs(_input={}) {
   return {...NO_EVS};
 }
@@ -83,7 +84,7 @@ export function makePokemon(calc,gen,source,settings={},customAbilities=[]) {
     gender:'M',
     nature:settings.nature || source.nature || 'Serious',
     ivs:{...PERFECT_IVS},
-    evs:{...NO_EVS},
+    evs:spToEvs(settings.statPoints??source.statPoints),
     boosts:{...NO_EVS,...settings.boosts},
     ability:engineAbility||undefined,
     item,
