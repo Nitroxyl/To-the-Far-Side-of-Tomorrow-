@@ -7,6 +7,7 @@ import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-u
 import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
 import {computeDamage,titleType} from './santara-damage-core.js?v=stat-points-20261124-1';
 import {canGigantamax,savedGigantamax} from './santara-max-moves.js';
+import {SP_STATS,SP_LABELS,parseStatPoints,spentSp} from './pokemon-stat-points.js';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
 const chip=document.querySelector('#user-chip'),feedback=document.querySelector('#calc-feedback');
@@ -147,6 +148,7 @@ function sideMarkup(side,title,selected){
   '<label class="field">Nature<select id="'+side+'-nature">'+natureOptions('Serious')+'</select></label>'+
   '<label class="field full">Ability<input id="'+side+'-ability" list="calc-ability-list" placeholder="Ability"></label>'+
   '<label class="field full">Held item<input id="'+side+'-item" list="calc-item-list" placeholder="None"></label>'+
+  '<p class="calc-muted" id="'+side+'-sp-summary">SP training: 0/66</p>'+
   '<label class="field">HP remaining (%)<input id="'+side+'-hp" type="number" min="1" max="100" value="100"></label>'+
   '<label class="field">Status<select id="'+side+'-status">'+
     ['None','Burned','Paralyzed','Poisoned','Badly poisoned','Asleep','Frozen'].map(x=>option(x,x,'None')).join('')+
@@ -274,6 +276,9 @@ function refreshSide(side) {
   if(gm&&byKey.get(readStr(side+'-choice'))?.kind==='mega'&&!source.heldItem)
    el(side+'-item').value=requiredStoneFor(source,source.megaForm);
   el(side+'-nature').value=source.nature||'Serious';
+  const points=parseStatPoints(source.statPoints);
+  const invested=SP_STATS.filter(stat=>points[stat]>0).map(stat=>SP_LABELS[stat]+' '+points[stat]);
+  el(side+'-sp-summary').textContent='SP: '+spentSp(points)+'/66'+(invested.length?' · '+invested.join(' · '):' · Untrained');
   el(side+'-status').value=source.status||'None';
   el(side+'-hp').value=source.currentHp!=null&&source.maxHp?Math.max(1,Math.round(100*source.currentHp/source.maxHp)):100;
   if(side==='a'){
