@@ -62,12 +62,16 @@ export function hpAfterMaxChange(currentHp,oldMax,newMax){
 
 // Santara V6 uses cartridge HP with perfect IVs (31) and no EV training.
 // Every Pokémon has effectively 0 EVs; old optional EV arguments are ignored.
-export function maxHpV6(stats,level){
+export function maxHpV6(stats,level,statPoints=null){
  const base=Number(stats?.hp),lvl=Number(level);
  if(!Number.isInteger(base)||base<1||base>255)throw Error('A valid base HP is required for V6.');
  if(!Number.isInteger(lvl)||lvl<1||lvl>100)throw Error('Pokémon level must be 1–100.');
  if(base===1)return 1; // Shedinja
- return Math.floor((2*base+31)*lvl/100)+lvl+10;
+ // Pokémon Champions-style HP SP: 1 SP = 4 EVs, then +8 EVs per SP.
+ const hpSP=Number(statPoints?.hp)||0;
+ if(!Number.isInteger(hpSP)||hpSP<0||hpSP>32)throw Error('HP SP must be 0–32.');
+ const quarterEvs=hpSP>0?2*hpSP-1:0;
+ return Math.floor((2*base+31+quarterEvs)*lvl/100)+lvl+10;
 }
 
 // Legacy V4 formula retained for migration comparisons, not new assignments.
@@ -88,7 +92,7 @@ export function combatSummary(mon,rules=null){
   dndLevel:level,
   proficiencyBonus:pb,
   levelDamageMultiplier:levelMultiplier,
-  suggestedMaxHp:validStats(s)?maxHpV6(s,mon.level):null,
+  suggestedMaxHp:validStats(s)?maxHpV6(s,mon.level,mon.statPoints):null,
   physicalOffenseBand:statBand(s.attack),
   specialOffenseBand:statBand(s.specialAttack),
   physicalDefenseBand:statBand(s.defense),
