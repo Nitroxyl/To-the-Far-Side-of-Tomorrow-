@@ -5,7 +5,7 @@ import {applyMegaOverlays} from './pokemon-mega-assignments.js?v=required-stone-
 import {SANTARA_MEGA_PREVIEWS,officialMegaPreviews,eligibleMegaForms,requiredStoneFor,matchesMegaStone,megaStoneNames,isStoryMega} from './santara-calculator-megas.js';
 import {playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,unlockedWeather,SPECIAL_WEATHER} from './santara-player-unlocks.js';
-import {computeDamage,titleType} from './santara-damage-core.js?v=max-moves-20261123-2';
+import {computeDamage,titleType} from './santara-damage-core.js?v=stat-points-20261124-1';
 import {canGigantamax,savedGigantamax} from './santara-max-moves.js';
 
 const gm=window.SANTARA_POKEMON_EDITION==='gm',host=document.querySelector('#calc-app');
@@ -164,7 +164,7 @@ function sideMarkup(side,title,selected){
   '</div>'+
   '<label class="field calc-tera-type" id="'+side+'-tera-wrap" hidden>Tera type<select id="'+side+'-teratype">'+typeOptions('Normal')+'</select></label>'+
   '</div></div>'+
-  '<details class="calc-advanced"><summary>Stat stages</summary><p class="calc-muted">Santara uses fixed 31 IVs and 0 EVs for every Pokémon. Only temporary battle stat changes need adjusting.</p>'+
+  '<details class="calc-advanced"><summary>Stat stages</summary><p class="calc-muted">Santara uses perfect 31 IVs and Stat Points (SP). Saved Pokémon load their SP training automatically; untrained Pokémon have 0 SP. Only temporary stat stages need adjusting.</p>'+
 
   '<div class="calc-stage-grid">'+[['atk','Attack'],['def','Defense'],['spa','Sp. Atk'],['spd','Sp. Def']].map(([key,label])=>'<label class="field">'+label+' stage<input id="'+side+'-boost-'+key+'" type="number" min="-6" max="6" value="0"></label>').join('')+'</div></details>'+
   '</section>';
