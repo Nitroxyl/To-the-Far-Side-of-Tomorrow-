@@ -1,7 +1,7 @@
 import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js';
 import {getFirestore,collection,doc,query,where,getDoc,onSnapshot,setDoc,addDoc,deleteDoc,writeBatch,runTransaction,updateDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js';
-import {statKeys,statLabels,validStats,maxHpV53,maxHpV6,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=v6-damage-20261113-1';
+import {statKeys,statLabels,validStats,maxHpV53,maxHpV6,hpAfterMaxChange,dndLevel,proficiencyBonus,levelDamageMultiplier,combatSummary,fromPokeApi,V52_TIERS} from './pokemon-math.js?v=sp-training-20261124-1';
 import {TYPE_NAMES,initialUnlocks,megaCompatible,effectivePokemon} from './pokemon-gimmicks.js';
 import {memoryKey,displayMoveName,uniqueMoves,eligibleLevelMoves,mergeMoveMemory,removeMoveMemory,validEquippedMoves,moveSourceName,MOVE_SOURCES} from './pokemon-move-memory.js?v=move-memory-20261109-1';
 import {classifyMove,classificationLabels} from './pokemon-move-metadata.js?v=santara-grid-moves-20261109-1';
@@ -9,6 +9,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {NATURE_NAMES,natureName,natureLabel,natureDescription,validNature} from './pokemon-natures.js';
 import {gigantamaxArtwork} from './pokemon-gmax-artwork.js';
+import {SP_STATS,SP_LABELS,SP_TOTAL_CAP,SP_STAT_CAP,TP_MAX,trainingPoints,unlockedSp,unlockedLevel,zeroStatPoints,parseStatPoints,spentSp,validateStatPoints} from './pokemon-stat-points.js';
 import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,GIMMICK_LABELS,UNLOCK_LIST_FIELDS} from './santara-player-unlocks.js';
 import {applyMegaOverlays,cleanMegaSnapshot} from './pokemon-mega-assignments.js';
@@ -29,9 +30,9 @@ const natureOptions=selected=>NATURE_NAMES.map(n=>option(n,natureLabel(n),nature
 const statuses=['None','Burned','Poisoned','Badly poisoned','Paralyzed','Asleep','Frozen'];
 const STAT_NAMES=['HP','Atk','Def','SpA','SpD','Spe'];
 const apiCache=new Map(),moveCache=new Map(),speciesFormCache=new Map();
-let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null,stopMoveMemory=null;
+let app,auth,store,user=null,allowed=false,stopAccess=null,stopPokemon=null,stopApprovals=null,stopCustoms=null,stopRequests=null,stopCards=null,stopMoves=null,stopAbilities=null,stopGimmicks=null,stopMegaForms=null,stopRole=null,stopMegaAssignments=null,stopMoveMemory=null,stopTraining=null;
 let roleAllowed=false,accessApproved=false;
-let moveMemories={},activeMoveCatalog=null,moveCatalogError='';
+let moveMemories={},trainingLedger={},activeMoveCatalog=null,moveCatalogError='';
 let rawPokemon=[],megaAssignments={},pokemon=[],trainers=[],trainerCards=[],customs=[],customMoves=[],customAbilities=[],requests=[],megaForms=[],trainerUnlocks={},playerUnlocks=readTrainerUnlocks(),editingMega=null,megaImported=false,battleRules=null,stopRules=null,view='party',chosen='',ownerFilter='',editingId='',draft=null,requestDraft=null,activeRequestId='',returnToAssign=false,collectionReady=false,collectionError='',moveInfo={},availableForms=[],formDiscoveryError='',busy=false;
 
 document.getElementById('edition-name').textContent=GM_SITE?'GM CONSOLE / TEAM MANAGEMENT':'POKÉDEX / TRAINER COLLECTION';
@@ -48,6 +49,24 @@ function trainerLabel(uid){
  const name=cap(card?.trainerName,32);
  if(name && name.toLowerCase()!=='new trainer')return name;
  return `${TRAINER_FALLBACK} #${String(uid).slice(0,6)}`;
+}
+function trainerTraining(uid){
+ return trainingPoints(trainingLedger[uid]?.totalTP);
+}
+function trainingOverview(){
+ const uid=GM_SITE?ownerFilter:user?.uid;
+ if(!uid)return '';
+ const tp=trainerTraining(uid),budget=unlockedSp(tp),level=unlockedLevel(tp);
+ const remaining=tp>=TP_MAX?'Maximum level progression reached':(3-tp%3)+' TP to next level';
+ return `<section class="panel training-overview">
+ <div><span class="eyebrow">TRAINING PROGRESSION</span><h3>${GM_SITE?esc(trainerLabel(uid))+' · ':''}${tp} Training Points</h3>
+ <p class="hint"><b>${budget}/66 SP unlocked per Pokémon</b> · Earned level ceiling: ${level} · ${esc(remaining)}</p>
+ <p class="hint">Every 1 TP unlocks 1 SP for each owned Pokémon; every 3 TP unlocks a level above Lv. 15. New captures share the same budget. TP after 66 still unlocks levels.</p></div>
+ ${GM_SITE?`<form id="training-award-form" class="training-award-form">
+ <label class="field">Award TP<input type="number" name="amount" min="1" max="${TP_MAX-tp}" value="${Math.min(3,Math.max(1,TP_MAX-tp))}" required></label>
+ <button type="submit" class="btn primary" ${tp>=TP_MAX?'disabled':''}>Grant Training Points</button>
+ </form>`:''}
+ </section>`;
 }
 function availableCustomSpecies(){
  return GM_SITE?customs:playerVisibleCustomSpecies(
@@ -330,6 +349,15 @@ function connect(){
    moveMemories=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
    if(view==='move-memory')render();
   },err=>{console.warn('Move Memory unavailable:',err.message);if(view==='move-memory')say('Move Memory cannot load. Your GM must publish the latest Firebase rules.')}
+ );
+ stopTraining=onSnapshot(
+  GM_SITE?collection(store,'santara_trainer_training'):doc(store,'santara_trainer_training',user.uid),
+  snap=>{
+   trainingLedger=GM_SITE?Object.fromEntries(snap.docs.map(d=>[d.id,d.data()])):
+     {[user.uid]:snap.exists()?snap.data():{totalTP:0}};
+   if(view==='party'||view==='storage'||chosen)render();
+  },err=>{console.warn('Training Points unavailable:',err.message);
+    say('Training Points cannot load. Publish the latest Firestore rules.');}
  );
  stopGimmicks=onSnapshot(GM_SITE?collection(store,'santara_trainer_gimmicks'):doc(store,'santara_trainer_gimmicks',user.uid),snap=>{
    if(GM_SITE)trainerUnlocks=Object.fromEntries(snap.docs.map(d=>[d.id,d.data()]));
@@ -628,6 +656,7 @@ function listView(){
  const slots=Array.from({length:6},(_,i)=>active.find(m=>Number(m.slot)===i+1));
  return `<div class="panel">${roster()}${view==='party'?`<div class="poke-grid">${slots.map((m,i)=>m?card(m):`<div class="empty">Slot ${i+1}<br>Empty</div>`).join('')}</div>`:
  `<div class="poke-grid">${storage.length?storage.map(card).join(''):'<div class="empty">No Pokémon in storage.</div>'}</div>`}</div>
+ ${trainingOverview()}
  ${GM_SITE?`<section class="panel"><h3>Custom Pokémon & forms</h3><p>Create custom species once, then select them when assigning a Pokémon. Official species import from PokéAPI instead.</p><div class="actions"><button class="btn" data-act="custom">+ Register custom species</button><button class="btn" data-act="define-move">+ Custom Move</button><button class="btn" data-act="define-ability">+ Custom Ability</button></div><p class="hint">${customs.length} custom species · ${customMoves.length} custom moves · ${customAbilities.length} custom abilities</p></section><section class="panel"><h3>V6 Pokémon Damage</h3><p>The calculator uses the standard Pokémon damage formula, perfect IVs and registered Santara custom forms. Existing Pokémon HP is kept unchanged until the GM recalculates and saves it.</p><div class="actions"><a class="btn primary" href="./damage-calculator.html">Open Damage Calculator</a><button class="btn" data-act="rules">Legacy V5.3 settings</button></div></section>` :''}${gmMechanicsUI()}${playerProgressionSummary()}${requestsSection()}`;
 }
 
@@ -780,17 +809,19 @@ function gmaxArtworkPreview(mon){
 
 // Level-up changes only Pokémon level and HP. The difference between the
 // stored HP and standard V6 HP remains intact (important for GM overrides).
-function pokemonLevelUpPlan(mon,targetLevel){
+function pokemonLevelUpPlan(mon,targetLevel,tpOverride=null){
  const oldLevel=Number(mon?.level),newLevel=Number(targetLevel);
  if(!Number.isInteger(oldLevel)||oldLevel<1||oldLevel>100)throw Error('The Pokémon has an invalid saved level.');
  if(!Number.isInteger(newLevel)||newLevel<=oldLevel||newLevel>100)
    throw Error('Choose a new Pokémon level above '+oldLevel+' and no higher than 100.');
+ const limit=GM_SITE?100:unlockedLevel(tpOverride===null?trainerTraining(mon.ownerUid):tpOverride);
+ if(newLevel>limit)throw Error('This Trainer has unlocked Pokémon levels only through Lv. '+limit+'. Earn more TP from the GM first.');
  if(!validStats(mon?.baseStats))throw Error('Valid species base stats are required before leveling up.');
  const previousMax=Number(mon?.maxHp),previousHp=Number(mon?.currentHp);
  if(!Number.isInteger(previousMax)||previousMax<1||previousMax>3000
     ||!Number.isInteger(previousHp)||previousHp<0||previousHp>previousMax)
    throw Error('This Pokémon has invalid stored HP. Ask the GM to fix it before leveling.');
- const hpGain=maxHpV6(mon.baseStats,newLevel)-maxHpV6(mon.baseStats,oldLevel);
+ const hpGain=maxHpV6(mon.baseStats,newLevel,mon.statPoints)-maxHpV6(mon.baseStats,oldLevel,mon.statPoints);
  const maxHp=previousMax+hpGain;
  if(maxHp<1||maxHp>3000)throw Error('New maximum HP is outside Santara limits.');
  const currentHp=hpAfterMaxChange(previousHp,previousMax,maxHp);
@@ -800,6 +831,8 @@ function pokemonLevelUI(mon){
  const level=Number(mon.level);
  if(!Number.isInteger(level)||level<1||level>100)return '<p class="hint full">Ask your GM to correct this Pokémon’s saved level before leveling up.</p>';
  if(level===100)return '<p class="hint full"><b>Level 100 reached.</b> This Pokémon is at the maximum level.</p>';
+ const ceiling=GM_SITE?100:unlockedLevel(trainerTraining(mon.ownerUid));
+ if(level>=ceiling)return '<p class="hint full">Level '+level+' / '+ceiling+' unlocked. Your Trainer needs more TP from the GM before this Pokémon can level further.</p>';
  let preview='';
  try{
    const next=pokemonLevelUpPlan(mon,level+1);
@@ -807,7 +840,7 @@ function pokemonLevelUI(mon){
  }catch(err){preview=err.message||String(err)}
  return `<form id="pokemon-level-form" class="pokemon-level-form">
  <label class="field">Level up (current Lv. ${level})
- <input id="pokemon-level-target" name="newLevel" type="number" min="${level+1}" max="100" step="1" value="${level+1}" required>
+ <input id="pokemon-level-target" name="newLevel" type="number" min="${level+1}" max="${ceiling}" step="1" value="${level+1}" required>
  </label>
  <p class="hint pokemon-level-preview" id="pokemon-level-preview" role="status" aria-live="polite">${esc(preview)}</p>
  <button class="btn primary" type="submit">Level up Pokémon</button>
@@ -836,7 +869,9 @@ async function savePokemonLevelUp(form){
    if(!saved.exists())throw Error('Pokémon record no longer exists.');
    const latest=saved.data();
    if(!GM_SITE&&latest.ownerUid!==user?.uid)throw Error('This Pokémon is not assigned to your account.');
-   const next=pokemonLevelUpPlan(latest,targetLevel);
+   const trainingSnap=GM_SITE?null:await tx.get(doc(store,'santara_trainer_training',latest.ownerUid));
+   const tp=GM_SITE?TP_MAX:trainingPoints(trainingSnap.exists()?trainingSnap.data().totalTP:0);
+   const next=pokemonLevelUpPlan(latest,targetLevel,tp);
    tx.update(ref,{level:next.newLevel,maxHp:next.maxHp,currentHp:next.currentHp,updatedAt:serverTimestamp()});
    return next;
  });
@@ -1272,15 +1307,15 @@ try{
  if(!config?.projectId)throw Error('Firebase configuration is missing.');
  app=getApps().length?getApp():initializeApp(config);auth=getAuth(app);store=getFirestore(app);
  function disconnectManagedData(){
- for(const key of ['stopPokemon','stopGimmicks','stopMegaForms','stopRules','stopRequests','stopApprovals','stopCards','stopMoves','stopAbilities','stopCustoms','stopMoveMemory']){
+ for(const key of ['stopPokemon','stopGimmicks','stopMegaForms','stopRules','stopRequests','stopApprovals','stopCards','stopMoves','stopAbilities','stopCustoms','stopMoveMemory','stopTraining']){
   // Stop active subscriptions; the user's authenticated role subscription remains live.
   const fn=({
    stopPokemon,stopGimmicks,stopMegaForms,stopRules,stopRequests,
-   stopApprovals,stopCards,stopMoves,stopAbilities,stopCustoms,stopMoveMemory
+   stopApprovals,stopCards,stopMoves,stopAbilities,stopCustoms,stopMoveMemory,stopTraining
   })[key];
   fn?.();
  }
- stopPokemon=stopGimmicks=stopMegaForms=stopRules=stopRequests=stopApprovals=stopCards=stopMoves=stopAbilities=stopCustoms=stopMoveMemory=null;moveMemories={};
+ stopPokemon=stopGimmicks=stopMegaForms=stopRules=stopRequests=stopApprovals=stopCards=stopMoves=stopAbilities=stopCustoms=stopMoveMemory=stopTraining=null;moveMemories={};trainingLedger={};
  pokemon=[];trainers=[];collectionReady=false;
 }
 function reconcileAccess(){
