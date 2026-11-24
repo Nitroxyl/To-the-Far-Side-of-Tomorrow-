@@ -122,3 +122,27 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
 #pokemon-sp-form .actions,#pokemon-sp-form #pokemon-sp-preview{grid-column:1/-1}
 #pokemon-sp-preview{margin:0;line-height:1.5;color:#bbe2d9}
 @media(max-width:650px){.stat-point-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.training-overview{align-items:flex-start}}
+
+
+/* View-only field initiative based on Nature, SP, form and effective Speed. */
+.initiative-card-line{display:block;margin-top:6px;color:#baf1e3;font-size:12px;line-height:1.35}
+.initiative-card-line b{font-size:12px;font-weight:800}
+.initiative-card-line small{font-weight:500;color:#a1bac4}
+.field-initiative-panel{background:linear-gradient(125deg,#102e37,#17283c);border:1px solid #447c7c;border-radius:12px;padding:15px;margin:15px 0}
+.field-initiative-top{display:flex;justify-content:space-between;gap:13px;align-items:center;flex-wrap:wrap}
+.field-initiative-top h4{font-size:21px;font-weight:700;margin:3px 0 3px}
+.field-initiative-top h4 strong{color:#86e8cc;font-size:25px}
+.field-initiative-top .hint{margin:5px 0}
+.field-initiative-options{border-top:1px solid #315b66;margin-top:12px;padding-top:11px}
+.field-initiative-options summary{cursor:pointer;font-size:12px;color:#baf1e3;font-weight:750}
+.field-initiative-options summary:hover{color:#e6fff6}
+.field-initiative-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0}
+.field-initiative-controls .field{min-width:90px;max-width:140px}
+.initiative-check{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #3b6570;border-radius:9px;min-height:39px;font-size:12px;cursor:pointer}
+.initiative-check input{width:16px;height:16px;margin:0;accent-color:#61d8bd}
+.field-initiative-footnote{font-size:11px;line-height:1.5;margin:11px 0 0;color:#b8cdd4}
+@media(max-width:620px){
+ .field-initiative-panel{padding:11px}
+ .field-initiative-top h4{font-size:19px}
+ .field-initiative-top h4 strong{font-size:23px}
+}
