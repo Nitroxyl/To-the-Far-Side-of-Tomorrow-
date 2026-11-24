@@ -778,6 +778,73 @@ function gmaxArtworkPreview(mon){
  </details></div>`;
 }
 
+// Level-up changes only Pokémon level and HP. The difference between the
+// stored HP and standard V6 HP remains intact (important for GM overrides).
+function pokemonLevelUpPlan(mon,targetLevel){
+ const oldLevel=Number(mon?.level),newLevel=Number(targetLevel);
+ if(!Number.isInteger(oldLevel)||oldLevel<1||oldLevel>100)throw Error('The Pokémon has an invalid saved level.');
+ if(!Number.isInteger(newLevel)||newLevel<=oldLevel||newLevel>100)
+   throw Error('Choose a new Pokémon level above '+oldLevel+' and no higher than 100.');
+ if(!validStats(mon?.baseStats))throw Error('Valid species base stats are required before leveling up.');
+ const previousMax=Number(mon?.maxHp),previousHp=Number(mon?.currentHp);
+ if(!Number.isInteger(previousMax)||previousMax<1||previousMax>3000
+    ||!Number.isInteger(previousHp)||previousHp<0||previousHp>previousMax)
+   throw Error('This Pokémon has invalid stored HP. Ask the GM to fix it before leveling.');
+ const hpGain=maxHpV6(mon.baseStats,newLevel)-maxHpV6(mon.baseStats,oldLevel);
+ const maxHp=previousMax+hpGain;
+ if(maxHp<1||maxHp>3000)throw Error('New maximum HP is outside Santara limits.');
+ const currentHp=hpAfterMaxChange(previousHp,previousMax,maxHp);
+ return {oldLevel,newLevel,hpGain,maxHp,currentHp};
+}
+function pokemonLevelUI(mon){
+ const level=Number(mon.level);
+ if(!Number.isInteger(level)||level<1||level>100)return '<p class="hint full">Ask your GM to correct this Pokémon’s saved level before leveling up.</p>';
+ if(level===100)return '<p class="hint full"><b>Level 100 reached.</b> This Pokémon is at the maximum level.</p>';
+ let preview='';
+ try{
+   const next=pokemonLevelUpPlan(mon,level+1);
+   preview='Lv. '+level+' → '+next.newLevel+' · HP '+mon.currentHp+'/'+mon.maxHp+' → '+next.currentHp+'/'+next.maxHp+' · D&D Lv. '+dndLevel(next.newLevel)+'/20';
+ }catch(err){preview=err.message||String(err)}
+ return `<form id="pokemon-level-form" class="pokemon-level-form">
+ <label class="field">Level up (current Lv. ${level})
+ <input id="pokemon-level-target" name="newLevel" type="number" min="${level+1}" max="100" step="1" value="${level+1}" required>
+ </label>
+ <p class="hint pokemon-level-preview" id="pokemon-level-preview" role="status" aria-live="polite">${esc(preview)}</p>
+ <button class="btn primary" type="submit">Level up Pokémon</button>
+ <p class="hint pokemon-level-help">Increase only, up to Lv. 100. Preserves existing damage and GM HP adjustments. Moves remain GM-managed.</p>
+ </form>`;
+}
+function updatePokemonLevelPreview(){
+ const form=root.querySelector('#pokemon-level-form'),preview=root.querySelector('#pokemon-level-preview');
+ if(!form||!preview)return;
+ const mon=pokemon.find(m=>m.id===chosen);
+ if(!mon)return;
+ try{
+   const next=pokemonLevelUpPlan(mon,Number(form.elements.newLevel.value));
+   preview.textContent='Lv. '+next.oldLevel+' → '+next.newLevel+' · HP '+mon.currentHp+'/'+mon.maxHp+' → '+next.currentHp+'/'+next.maxHp+' · D&D Lv. '+dndLevel(next.newLevel)+'/20 (proficiency +'+proficiencyBonus(next.newLevel)+')';
+ }catch(err){preview.textContent=err.message||String(err)}
+}
+async function savePokemonLevelUp(form){
+ const mon=pokemon.find(m=>m.id===chosen);
+ if(!mon)throw Error('Pokémon record is no longer available.');
+ if(!GM_SITE&&mon.ownerUid!==user?.uid)throw Error('You can only level up your own Pokémon.');
+ const targetLevel=Number(new FormData(form).get('newLevel'));
+ pokemonLevelUpPlan(mon,targetLevel); // validate before the transaction
+ const ref=doc(store,'santara_pokemon',mon.id);
+ const outcome=await runTransaction(store,async tx=>{
+   const saved=await tx.get(ref);
+   if(!saved.exists())throw Error('Pokémon record no longer exists.');
+   const latest=saved.data();
+   if(!GM_SITE&&latest.ownerUid!==user?.uid)throw Error('This Pokémon is not assigned to your account.');
+   const next=pokemonLevelUpPlan(latest,targetLevel);
+   tx.update(ref,{level:next.newLevel,maxHp:next.maxHp,currentHp:next.currentHp,updatedAt:serverTimestamp()});
+   return next;
+ });
+ say('Level up saved! Lv. '+outcome.oldLevel+' → '+outcome.newLevel+
+   '. Maximum HP +'+outcome.hpGain+'; current HP '+outcome.currentHp+'/'+outcome.maxHp+
+   '. Level-up moves remain under GM control.');
+}
+
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
@@ -796,7 +863,8 @@ function detail(m){
  }).join(''):'<div class="hint">No moves assigned by the GM yet.</div>'}</div></section>
  ${controlsUI(m,unlocks(m.ownerUid),esc,option,megaCompatible(m,m.megaForm),megaAssignments[m.id]?.requiredStone||'')}
  <section class="panel"><h3>Pokémon customization</h3>
- <p class="hint">Change this Pokémon's nickname, held item or Nature without modifying its level, moves, abilities, or HP. Changes also appear in the damage calculator.</p>
+ <p class="hint">Update this Pokémon’s level, nickname, held item or Nature. Leveling updates HP and combat calculations; moves, abilities and species remain GM-managed.</p>
+ ${pokemonLevelUI(m)}
  <form id="pokemon-customize-form" class="form-grid">
  <label class="field">Nickname<input name="nickname" maxlength="32" value="${esc(m.nickname||'')}" placeholder="Species name if left blank"></label>
  <label class="field">Held item<input name="heldItem" maxlength="80" value="${esc(m.heldItem||'')}" placeholder="e.g. Leftovers, Choice Scarf, Mega Stone" list="held-item-suggestions"><small class="hint">Custom items are allowed, but only supported effects are calculated automatically.</small></label>
@@ -1145,6 +1213,7 @@ root.addEventListener('click',async e=>{
   if(action==='google'){await signInWithPopup(auth,new GoogleAuthProvider())}
  }catch(err){fail(err)}finally{busy=false;if((action==='lookup'||action==='request-lookup')&&b.isConnected)b.disabled=false}
 });
+root.addEventListener('input',e=>{if(e.target.id==='pokemon-level-target')updatePokemonLevelPreview()});
 root.addEventListener('change',e=>{
  if(e.target.name==='requestSpeciesForm'&&view==='request'){
   busy=true;changeRequestForm(e.target.value).catch(fail).finally(()=>{busy=false});
@@ -1180,6 +1249,7 @@ root.addEventListener('submit',async e=>{
   if(form.id==='party-login'){const f=new FormData(form);await signInWithEmailAndPassword(auth,String(f.get('email')).trim(),String(f.get('password')))}
   if(form.id==='track-form')await saveTracking(form);
   if(form.id==='pokemon-customize-form')await savePersonalization(form);
+  if(form.id==='pokemon-level-form')await savePokemonLevelUp(form);
    if(form.id==='memory-slots-form')await saveMemorySlots(form);
    if(form.id==='memory-grant-form'&&GM_SITE){
     const f=new FormData(form),move=cap(f.get('memoryMove'),48),source=String(f.get('memorySource')||'gm');
