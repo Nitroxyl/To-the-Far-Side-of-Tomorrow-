@@ -988,7 +988,7 @@ function initiativePanel(mon){
   </div>
   <p class="hint" id="initiative-order-note">Priority first, then effective Speed in regular trainer battles.</p>
  </details>
- <p class="hint field-initiative-footnote">Field encounters use one d20 roll plus this bonus. Nature, saved Speed SP, current form, paralysis and supported Speed items are included. Temporary modifiers are previews only; they do not change the Pokémon record.</p>
+ <p class="hint field-initiative-footnote">For field encounters, roll d20 once and add this bonus. If Speed changes, keep the original die roll and update turn order next round. Nature, Speed SP, current form, paralysis and supported Speed items are included. Temporary modifiers are previews only and do not change the saved Pokémon.</p>
  </section>`;
 }
 function updateInitiativePreview(){
