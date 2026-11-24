@@ -9,6 +9,7 @@ import {TYPES,KEYS,unlockUI,libraryUI,editorUI,controlsUI} from './pokemon-gimmi
 import {publicPartySlots,partySignature} from './pokemon-public-party.js';
 import {NATURE_NAMES,natureName,natureLabel,natureDescription,validNature} from './pokemon-natures.js';
 import {gigantamaxArtwork} from './pokemon-gmax-artwork.js';
+import {fieldInitiative,initiativeText} from './pokemon-initiative.js';
 import {SP_STATS,SP_LABELS,SP_TOTAL_CAP,SP_STAT_CAP,TP_MAX,trainingPoints,unlockedSp,unlockedLevel,zeroStatPoints,parseStatPoints,spentSp,validateStatPoints} from './pokemon-stat-points.js';
 import {isUnreleasedEclipse,playerVisibleCustomSpecies} from './santara-spoiler-gates.js?v=trainer-unlocks-20261114-2';
 import {readTrainerUnlocks,visiblePlayerContent,GIMMICK_LABELS,UNLOCK_LIST_FIELDS} from './santara-player-unlocks.js';
@@ -524,8 +525,9 @@ function card(m){
  const shown=displayPokemon(m);
  const max=Math.max(1,shown.maxHp||1),pct=Math.max(0,Math.min(100,Math.round((shown.currentHp||0)/max*100)));
  const cls=pct<=20?'critical':pct<=50?'low':'';
+ const initiative=fieldInitiative(shown);
  return `<button class="poke-card" type="button" data-act="show" data-id="${esc(m.id)}">${artwork(shown)}<span class="poke-info">
- <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((shown.types||[]).join(' / '))}</span><span class="sub" style="display:block">Movement: ${combatSummary(shown,battleRules).movementSquares} squares / turn</span>
+ <span class="name">${esc(m.nickname||m.speciesName)}</span><span class="sub" style="display:block">Lv. ${Number(m.level)||1} · ${esc((shown.types||[]).join(' / '))}</span><span class="sub" style="display:block">Movement: ${combatSummary(shown,battleRules).movementSquares} squares / turn</span><span class="initiative-card-line"><b>Field initiative ${esc(initiativeText(initiative))}</b>${initiative?` <small>(Speed ${initiative.effectiveSpeed})</small>`:""}</span>
  <span class="hpbar ${cls}"><i style="width:${pct}%"></i></span><span class="sub">${shown.currentHp}/${shown.maxHp} HP · ${esc(m.status||'None')}</span></span></button>`;
 }
 
@@ -964,6 +966,51 @@ async function awardTrainerTP(form){
    unlockedSp(total)+' SP per Pokémon, level ceiling '+unlockedLevel(total)+'.');
 }
 
+function initiativePanel(mon){
+ const result=fieldInitiative(mon);
+ if(!result)return '<div class="field-initiative-panel"><p class="hint">Initiative is unavailable until the Pokémon has valid base Speed and level data.</p></div>';
+ const stageOptions=Array.from({length:13},(_,i)=>{
+  const value=i-6,label=value>0?'+'+value:String(value);
+  return option(value,label,value===0?0:'not-selected');
+ }).join('');
+ return `<section class="field-initiative-panel" id="initiative-preview" aria-label="Field initiative">
+ <div class="field-initiative-top">
+  <div><span class="eyebrow">FIELD INITIATIVE</span><h4>d20 <strong id="initiative-bonus">+${result.bonus}</strong></h4>
+  <p class="hint" id="initiative-speed-detail">Calculated Speed ${result.statSpeed} · Effective Speed ${result.effectiveSpeed} · floor(Speed / 10)</p></div>
+  <span class="chip">Speed SP: ${result.speedSp}/32</span>
+ </div>
+ <details class="field-initiative-options">
+  <summary>Preview temporary Speed effects</summary>
+  <div class="field-initiative-controls">
+   <label class="field">Speed stage<select id="initiative-stage">${stageOptions}</select></label>
+   <label class="initiative-check"><input id="initiative-tailwind" type="checkbox"><span>Tailwind active</span></label>
+   <label class="initiative-check"><input id="initiative-trickroom" type="checkbox"><span>Trick Room active</span></label>
+  </div>
+  <p class="hint" id="initiative-order-note">Priority first, then effective Speed in regular trainer battles.</p>
+ </details>
+ <p class="hint field-initiative-footnote">Field encounters use one d20 roll plus this bonus. Nature, saved Speed SP, current form, paralysis and supported Speed items are included. Temporary modifiers are previews only; they do not change the Pokémon record.</p>
+ </section>`;
+}
+function updateInitiativePreview(){
+ const mon=pokemon.find(m=>m.id===chosen),container=root.querySelector('#initiative-preview');
+ if(!mon||!container)return;
+ const result=fieldInitiative(displayPokemon(mon),{
+  stages:Number(container.querySelector('#initiative-stage')?.value||0),
+  tailwind:!!container.querySelector('#initiative-tailwind')?.checked,
+  trickRoom:!!container.querySelector('#initiative-trickroom')?.checked
+ });
+ if(!result)return;
+ const bonus=container.querySelector('#initiative-bonus'),
+  detail=container.querySelector('#initiative-speed-detail'),
+  order=container.querySelector('#initiative-order-note');
+ if(bonus)bonus.textContent=initiativeText(result);
+ if(detail)detail.textContent='Calculated Speed '+result.statSpeed+
+  ' · Effective Speed '+result.effectiveSpeed+' · floor(Speed / 10)';
+ if(order)order.textContent=result.trickRoom
+  ?'Trick Room reverses Speed order within priority brackets. It does not change the Speed value or displayed bonus.'
+  :'Regular trainer battles use move priority first, then effective Speed. Field encounters add the bonus to the original d20 roll.';
+}
+
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
@@ -971,6 +1018,7 @@ function detail(m){
  <div class="detail-head">${artwork(shown)}<div><span class="eyebrow">${esc(m.source==='custom'?'SANTARA CUSTOM SPECIES':'OFFICIAL POKÉMON')}</span><h2>${esc(m.nickname||m.speciesName)} <span class="chip">Lv. ${m.level}</span> <span class="chip">D&D Lv. ${d.dndLevel}</span> ${shown.mega?'<span class="chip">MEGA</span>':''}</h2><p>${esc(shown.displayName)} · ${esc((shown.types||[]).join(' / '))} · ${esc(shown.ability||'No ability')}${shown.tera?' · TERA':''}</p><p>Nature: <b>${esc(natureName(m.nature))}</b> · Held item: ${esc(m.heldItem||'None')} · ${esc(m.status||'None')}</p>${customAbilityByName(shown.ability)?`<p class="hint"><b>${esc(shown.ability)}:</b> ${esc(customAbilityByName(shown.ability).description)}</p>`:''}</div></div></section>
  <div class="columns"><section class="panel"><h3>Battle Sheet ${shown.mega?'<span class="chip">Mega stats active</span>':''}</h3>${shown.mega?'<p class="hint">Base form preserved. Revert Mega to restore original stats.</p>':''}<div class="stats-grid">${statKeys.map((key,i)=>`<div class="stat"><b>${Number(s[key])||0}</b><small>${statLabels[i]}</small></div>`).join('')}</div>
  <p class="hint">Grid movement: <b>${d.movementSquares} squares</b> (${d.movementFeet} ft). D&D level: ${d.dndLevel}/20; proficiency: +${d.proficiencyBonus}. These remain useful for adventure encounters.</p>
+ ${initiativePanel(shown)}
  <p class="flag">V6: Pokémon damage and defenses use the standard Pokémon formula, not the old dice or stat-tier multipliers. All IVs are effectively perfect (31). <a href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Open the calculator</a>.</p>
  ${validStats(m.baseStats)&&Number(m.maxHp)!==maxHpV6(m.baseStats,m.level,m.statPoints)?'<p class="hint">Stored max HP '+m.maxHp+' differs from V6 SP-adjusted standard '+maxHpV6(m.baseStats,m.level,m.statPoints)+'. The GM can explicitly recalculate HP and save in Edit Pokémon; existing custom HP is preserved until then.</p>':''}
  <div class="actions"><a class="btn primary" href="./damage-calculator.html?attacker=${encodeURIComponent(m.id)}">Calculate Damage</a><button type="button" class="btn" data-act="manage-moves">Manage Moves / Remember Moves</button></div><div class="move-list">${(m.moves||[]).length?(m.moves||[]).map(name=>{
@@ -1337,6 +1385,7 @@ root.addEventListener('input',e=>{
  if(e.target.closest('#pokemon-sp-form'))updateStatPointPreview();
 });
 root.addEventListener('change',e=>{
+ if(e.target.closest('#initiative-preview'))updateInitiativePreview();
  if(e.target.name==='requestSpeciesForm'&&view==='request'){
   busy=true;changeRequestForm(e.target.value).catch(fail).finally(()=>{busy=false});
   return;
