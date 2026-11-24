@@ -82,3 +82,23 @@ label.gimmick-tile{flex-direction:row;align-items:flex-start}
  .gmax-artwork-canvas{height:150px;padding:6px}
  .gmax-artwork-comparison figcaption{font-size:11px}
 }
+
+
+/* Trainer-owned Pokémon leveling, independent of cosmetic customization. */
+.pokemon-level-form{display:grid;grid-template-columns:minmax(150px,230px) minmax(180px,1fr) auto;
+ align-items:end;gap:12px;padding:15px;margin:0 0 19px;border-radius:12px;
+ background:#102b35;border:1px solid #3a7670}
+.pokemon-level-form .field{min-width:0}
+.pokemon-level-preview{margin:0;align-self:center;line-height:1.55;color:#c4f2e4}
+.pokemon-level-form .btn{white-space:nowrap;align-self:end}
+.pokemon-level-help{grid-column:1/-1;margin:0;line-height:1.45}
+@media(max-width:800px){
+ .pokemon-level-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pokemon-level-preview{grid-column:1/-1;grid-row:2}
+ .pokemon-level-form .btn{justify-self:start}
+}
+@media(max-width:480px){
+ .pokemon-level-form{grid-template-columns:1fr}
+ .pokemon-level-preview{grid-column:auto;grid-row:auto}
+ .pokemon-level-form .btn{width:100%}
+}
