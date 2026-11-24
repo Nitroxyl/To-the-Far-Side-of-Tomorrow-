@@ -880,6 +880,90 @@ async function savePokemonLevelUp(form){
    '. Level-up moves remain under GM control.');
 }
 
+function statPointPanel(mon){
+ const budget=GM_SITE?SP_TOTAL_CAP:unlockedSp(trainerTraining(mon.ownerUid));
+ const allocation=parseStatPoints(mon.statPoints),spent=spentSp(allocation);
+ const options=SP_STATS.map(stat=>'<label class="field sp-field"><span>'+SP_LABELS[stat]+
+   ' <small>(max '+SP_STAT_CAP+')</small></span><input name="sp_'+stat+
+   '" type="number" min="0" max="'+SP_STAT_CAP+'" step="1" value="'+allocation[stat]+'" required></label>').join('');
+ return '<div class="stat-points-section"><div class="stat-points-heading"><h4>Stat Training (SP)</h4><span class="chip">'+
+  spent+' / '+budget+' SP spent</span></div>'+
+  '<p class="hint">Pokémon Champions-style training: up to 66 SP total, 32 per stat. Each Trainer TP unlocks one SP for each of their Pokémon. Allocations affect the damage calculator automatically.</p>'+
+  '<form id="pokemon-sp-form" class="form-grid"><div class="stat-point-grid">'+options+'</div>'+
+  '<p id="pokemon-sp-preview" class="hint full" role="status" aria-live="polite">'+
+  (budget-spent)+' SP available · HP '+mon.currentHp+'/'+mon.maxHp+'. '+
+  (GM_SITE?'GM override: up to 66 SP.':'GM awards more TP to increase your budget.')+'</p>'+
+  '<div class="actions"><button class="btn primary" type="submit">Save Stat Training</button></div></form></div>';
+}
+function readStatTraining(form){
+ return Object.fromEntries(SP_STATS.map(stat=>[stat,Number(form.elements['sp_'+stat]?.value)]));
+}
+function updateStatPointPreview(){
+ const form=root.querySelector('#pokemon-sp-form'),preview=root.querySelector('#pokemon-sp-preview');
+ if(!form||!preview)return;
+ const mon=pokemon.find(m=>m.id===chosen);
+ if(!mon)return;
+ const values=readStatTraining(form);
+ const allowance=GM_SITE?SP_TOTAL_CAP:unlockedSp(trainerTraining(mon.ownerUid));
+ const error=validateStatPoints(values,allowance);
+ if(error){preview.textContent=error;return}
+ try{
+  const nextMax=mon.maxHp+maxHpV6(mon.baseStats,mon.level,values)-maxHpV6(mon.baseStats,mon.level,mon.statPoints);
+  const nextHp=hpAfterMaxChange(mon.currentHp,mon.maxHp,nextMax);
+  preview.textContent=spentSp(values)+'/'+allowance+' SP spent · '+(allowance-spentSp(values))+
+    ' unallocated · Projected HP: '+nextHp+'/'+nextMax+'. Other stat bonuses apply in battle calculations.';
+ }catch(err){preview.textContent=err.message||String(err)}
+}
+async function saveStatTraining(form){
+ const mon=pokemon.find(m=>m.id===chosen);
+ if(!mon)throw Error('Pokémon is no longer available.');
+ if(!GM_SITE&&mon.ownerUid!==user?.uid)throw Error('You may only train your own Pokémon.');
+ const allocation=readStatTraining(form);
+ const initialBudget=GM_SITE?SP_TOTAL_CAP:unlockedSp(trainerTraining(mon.ownerUid));
+ const error=validateStatPoints(allocation,initialBudget);
+ if(error)throw Error(error);
+ const ref=doc(store,'santara_pokemon',mon.id);
+ const outcome=await runTransaction(store,async tx=>{
+  const saved=await tx.get(ref);
+  if(!saved.exists())throw Error('The Pokémon record was deleted.');
+  const latest=saved.data();
+  if(!GM_SITE&&latest.ownerUid!==user?.uid)throw Error('That Pokémon is assigned to another Trainer.');
+  const trainingSnap=GM_SITE?null:await tx.get(doc(store,'santara_trainer_training',latest.ownerUid));
+  const allowance=GM_SITE?SP_TOTAL_CAP:unlockedSp(trainingSnap.exists()?trainingSnap.data().totalTP:0);
+  const invalid=validateStatPoints(allocation,allowance);
+  if(invalid)throw Error(invalid);
+  const old=parseStatPoints(latest.statPoints);
+  if(SP_STATS.every(stat=>old[stat]===allocation[stat]))return {unchanged:true};
+  const maxHp=latest.maxHp+maxHpV6(latest.baseStats,latest.level,allocation)-
+    maxHpV6(latest.baseStats,latest.level,latest.statPoints);
+  const currentHp=hpAfterMaxChange(latest.currentHp,latest.maxHp,maxHp);
+  tx.update(ref,{statPoints:allocation,maxHp,currentHp,updatedAt:serverTimestamp()});
+  return {spent:spentSp(allocation),maxHp,currentHp};
+ });
+ say(outcome.unchanged?'Stat training already matches this spread.':
+   'Stat training saved: '+outcome.spent+' SP invested. HP: '+outcome.currentHp+'/'+outcome.maxHp+
+   '. Your damage calculator will use this spread on reload.');
+}
+async function awardTrainerTP(form){
+ if(!GM_SITE)throw Error('Only a GM can award Training Points.');
+ const uid=ownerFilter;
+ if(!uid||!mayManageTrainer(uid))throw Error('Select an authorized Trainer first.');
+ const amount=Number(new FormData(form).get('amount'));
+ if(!Number.isInteger(amount)||amount<1||amount>TP_MAX)
+   throw Error('Award a whole number of Training Points.');
+ const ref=doc(store,'santara_trainer_training',uid);
+ const total=await runTransaction(store,async tx=>{
+  const saved=await tx.get(ref);
+  const old=saved.exists()?trainingPoints(saved.data().totalTP):0;
+  if(old+amount>TP_MAX)throw Error('This award exceeds the maximum of '+TP_MAX+' Trainer TP.');
+  const next=old+amount;
+  tx.set(ref,{totalTP:next,updatedAt:serverTimestamp()});
+  return next;
+ });
+ say(amount+' TP awarded to '+trainerLabel(uid)+'. Total: '+total+' TP, '+
+   unlockedSp(total)+' SP per Pokémon, level ceiling '+unlockedLevel(total)+'.');
+}
+
 function detail(m){
  const shown=displayPokemon(m),s=shown.baseStats||{},d=combatSummary(shown,battleRules);
  const mul=v=>typeof v==='number'?`×${v.toFixed(2)}`:'Pending';
@@ -908,7 +992,7 @@ function detail(m){
 ${gmaxArtworkPreview(m)}
  <p class="hint full">Currently: ${esc(natureDescription(m.nature))} Held items are recorded here; they are not automatically withdrawn from the Trainer Bag.</p>
  <div class="actions"><button class="btn primary" type="submit">Save Pokémon customization</button></div>
- </form></section><section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
+ </form>${statPointPanel(m)}</section><section class="panel"><h3>Battle tracking</h3><p class="hint">${shown.dynamax?`Dynamax HP: ${shown.currentHp}/${shown.maxHp}. Stored base HP: ${m.currentHp}/${m.maxHp}.`:"Mega Evolution does not alter tracked maximum HP (consistent with standard Mega HP rules)."}</p><form id="track-form" class="form-grid">
  <label class="field">Current HP <span class="hint">Maximum ${m.maxHp}</span><input name="currentHp" type="number" min="0" max="${m.maxHp}" required value="${m.currentHp}"></label>
  <label class="field">Status<select name="status">${statuses.map(s=>option(s,s,m.status||'None')).join('')}</select></label>
  <label class="field">Party slot <span class="hint">Storage = 0</span><select name="slot">${Array.from({length:7},(_,i)=>option(i,i===0?'Storage':`Slot ${i}`,m.slot||0)).join('')}</select></label>
@@ -1248,7 +1332,10 @@ root.addEventListener('click',async e=>{
   if(action==='google'){await signInWithPopup(auth,new GoogleAuthProvider())}
  }catch(err){fail(err)}finally{busy=false;if((action==='lookup'||action==='request-lookup')&&b.isConnected)b.disabled=false}
 });
-root.addEventListener('input',e=>{if(e.target.id==='pokemon-level-target')updatePokemonLevelPreview()});
+root.addEventListener('input',e=>{
+ if(e.target.id==='pokemon-level-target')updatePokemonLevelPreview();
+ if(e.target.closest('#pokemon-sp-form'))updateStatPointPreview();
+});
 root.addEventListener('change',e=>{
  if(e.target.name==='requestSpeciesForm'&&view==='request'){
   busy=true;changeRequestForm(e.target.value).catch(fail).finally(()=>{busy=false});
@@ -1285,6 +1372,8 @@ root.addEventListener('submit',async e=>{
   if(form.id==='track-form')await saveTracking(form);
   if(form.id==='pokemon-customize-form')await savePersonalization(form);
   if(form.id==='pokemon-level-form')await savePokemonLevelUp(form);
+  if(form.id==='pokemon-sp-form')await saveStatTraining(form);
+  if(form.id==='training-award-form')await awardTrainerTP(form);
    if(form.id==='memory-slots-form')await saveMemorySlots(form);
    if(form.id==='memory-grant-form'&&GM_SITE){
     const f=new FormData(form),move=cap(f.get('memoryMove'),48),source=String(f.get('memorySource')||'gm');
